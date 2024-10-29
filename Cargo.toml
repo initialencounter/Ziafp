@@ -1,0 +1,9 @@
+[package]
+name = "explorer-contextmenu"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+reqwest = "0.12.8"
+tokio = "1.41.0"
+winreg = "0.52.0"
