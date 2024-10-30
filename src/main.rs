@@ -2,6 +2,7 @@ use std::io;
 use winreg::enums::*;
 use winreg::RegKey;
 use std::env;
+use reqwest::blocking::{Client, multipart};
 
 fn create_reg(key_name: &str, menu_name: &str, command: &str, icon: &str) -> io::Result<()> {
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
@@ -15,6 +16,27 @@ fn create_reg(key_name: &str, menu_name: &str, command: &str, icon: &str) -> io:
 }
 pub fn is_integer(s: &str) -> bool {
     s.parse::<i32>().is_ok()
+}
+
+
+pub fn post_file(file_path: String) -> Result<(), Box<dyn std::error::Error>> {
+    // 创建一个 reqwest 客户端
+    let client = Client::new();
+
+    let form = multipart::Form::new()
+        .text("filePath", file_path); // 添加文本字段
+    // 发送 POST 请求
+    let response = client.post("http://127.0.0.1:3000/upload")
+        .multipart(form)
+        .send()?;
+
+    // 检查响应状态
+    if response.status().is_success() {
+        println!("Request succeeded: {:?}", response.text()?);
+    } else {
+        println!("Request failed with status: {:?}", response.status());
+    }
+    Ok(())
 }
 
 fn main() {
@@ -37,4 +59,5 @@ fn main() {
         let icon = r#"C:\Users\29115\AppData\Local\Programs\Microsoft VS Code\Code.exe"#;
         create_reg(key_name, menu_name, command, icon).unwrap();
     }
+    let _ = post_file(args[1].to_string());
 }

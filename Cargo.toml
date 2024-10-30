@@ -1,9 +1,9 @@
 [package]
-name = "explorer-contextmenu"
+name = "Ziafp"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-reqwest = "0.12.8"
-tokio = "1.41.0"
+reqwest = {version = "0.12.8", features = ["blocking", "json", "multipart"]}
+tokio = { version = "1.41.0", features = ["full"] }
 winreg = "0.52.0"
