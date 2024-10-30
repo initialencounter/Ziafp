@@ -1,11 +1,12 @@
+use std::env;
+use std::fs;
 use std::io;
+use std::path::Path;
 use std::path::PathBuf;
+
+use reqwest::blocking::{Client, multipart};
 use winreg::enums::*;
 use winreg::RegKey;
-use std::env;
-use reqwest::blocking::{Client, multipart};
-use std::fs;
-use std::path::Path;
 
 fn traverse_directory(path: &Path, depth: usize) {
     if depth > 3 {
@@ -21,10 +22,6 @@ fn traverse_directory(path: &Path, depth: usize) {
     }
 }
 
-fn main() {
-    let start_path = Path::new(r"E:\2024\10\00000000000000000000000000\10.30优瑞特（实达 9964145）\新出空运 ORTB21-2024082002 佛山市实达科技 9964145 优瑞特 10.30 贲");
-    traverse_directory(start_path, 1);
-}
 fn create_reg(key_name: &str, menu_name: &str, command: &str, icon: &str) -> io::Result<()> {
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
     let vs_code_key = hklm.create_subkey(format!("SOFTWARE\\Classes\\Directory\\background\\shell\\{}", key_name))?;
@@ -42,8 +39,17 @@ pub fn is_integer(s: &str) -> bool {
 fn parse_path(path: PathBuf) -> () {
     let dir = path.as_os_str().to_str().unwrap().to_string();
     let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
-    if file_name.ends_with(".pdf") && file_name.starts_with("PEKGZ2024") {
-        println!("文件名称: {:?}", file_name);
+    if file_name.ends_with(".pdf") && (file_name.starts_with("PEK") || file_name.starts_with("SEK")) {
+        let doc_file_path: String;
+        if file_name.contains("概要") {
+            doc_file_path = dir.replace(".pdf", ".docx");
+        } else {
+            doc_file_path = dir.replace(".pdf", ".doc");
+        }
+        let doc_file_path_buf = PathBuf::from(doc_file_path);
+        if doc_file_path_buf.exists() {
+            println!("文件名称: {:?}", file_name);
+        }
     }
 }
 
@@ -68,7 +74,7 @@ pub fn post_file(file_path: String) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn maina() {
+fn main() {
     let args: Vec<String> = env::args().collect();
     println!("{:?}", args);
     if args.len() < 2 {
@@ -89,4 +95,17 @@ fn maina() {
         create_reg(key_name, menu_name, command, icon).unwrap();
     }
     let _ = post_file(args[1].to_string());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_integer() {
+        let start_path = Path::new(r"Z:\");
+        traverse_directory(start_path, 1);
+        assert_eq!(is_integer("123"), true);
+        assert_eq!(is_integer("abc"), false);
+    }
 }
