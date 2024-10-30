@@ -1,26 +1,10 @@
 use std::env;
-use std::fs;
 use std::io;
-use std::path::Path;
-use std::path::PathBuf;
+
 
 use reqwest::blocking::{Client, multipart};
 use winreg::enums::*;
 use winreg::RegKey;
-
-fn traverse_directory(path: &Path, depth: usize) {
-    if depth > 3 {
-        return;
-    }
-    if path.is_dir() {
-        for entry in fs::read_dir(path).unwrap() {
-            let entry_path = entry.unwrap().path();
-            // println!("当前路径: {:?}", entry_path);
-            parse_path(entry_path.clone());
-            traverse_directory(&entry_path, depth + 1);
-        }
-    }
-}
 
 fn create_reg(key_name: &str, menu_name: &str, command: &str, icon: &str) -> io::Result<()> {
     let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
@@ -32,28 +16,6 @@ fn create_reg(key_name: &str, menu_name: &str, command: &str, icon: &str) -> io:
     println!("注册表项已创建");
     Ok(())
 }
-pub fn is_integer(s: &str) -> bool {
-    s.parse::<i32>().is_ok()
-}
-
-fn parse_path(path: PathBuf) -> () {
-    let dir = path.as_os_str().to_str().unwrap().to_string();
-    let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
-    if file_name.ends_with(".pdf") && (file_name.starts_with("PEK") || file_name.starts_with("SEK")) {
-        let doc_file_path: String;
-        if file_name.contains("概要") {
-            doc_file_path = dir.replace(".pdf", ".docx");
-        } else {
-            doc_file_path = dir.replace(".pdf", ".doc");
-        }
-        let doc_file_path_buf = PathBuf::from(doc_file_path);
-        if doc_file_path_buf.exists() {
-            println!("文件名称: {:?}", file_name);
-        }
-    }
-}
-
-
 pub fn post_file(file_path: String) -> Result<(), Box<dyn std::error::Error>> {
     // 创建一个 reqwest 客户端
     let client = Client::new();
@@ -95,17 +57,4 @@ fn main() {
         create_reg(key_name, menu_name, command, icon).unwrap();
     }
     let _ = post_file(args[1].to_string());
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_is_integer() {
-        let start_path = Path::new(r"Z:\");
-        traverse_directory(start_path, 1);
-        assert_eq!(is_integer("123"), true);
-        assert_eq!(is_integer("abc"), false);
-    }
 }

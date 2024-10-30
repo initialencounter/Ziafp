@@ -3,7 +3,7 @@
 version = 3
 
 [[package]]
-name = "Ziafp"
+name = "Ziafp-client"
 version = "0.1.0"
 dependencies = [
  "reqwest",
