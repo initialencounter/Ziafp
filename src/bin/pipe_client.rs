@@ -1,7 +1,5 @@
 use std::fs::OpenOptions;
 use std::io::Write;
-use std::os::windows::fs::OpenOptionsExt;
-use winapi::um::winbase::FILE_FLAG_OVERLAPPED;
 
 fn main() -> std::io::Result<()> {
     println!("正在连接到管道...");
