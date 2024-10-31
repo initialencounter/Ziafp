@@ -6,12 +6,17 @@
     "fileapi",
     "goodsfile",
     "handleapi",
+    "hklm",
+    "lims",
     "namedpipeapi",
     "READMODE",
     "Referer",
     "refesh",
     "serde",
+    "subkey",
     "winapi",
-    "winbase"
+    "winbase",
+    "winreg",
+    "Ziafp"
   ]
 }
