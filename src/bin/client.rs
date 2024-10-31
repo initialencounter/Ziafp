@@ -45,16 +45,9 @@ fn main() {
         let key_name = "limsClient";
         let menu_name = "Upload file here";
         let command = format!(r#""{}" %V"#, current_exe_abs_path);
-        create_reg(key_name, menu_name, &command, "").unwrap();
+        let icon = format!(r#"{}"#, current_exe_abs_path);
+        create_reg(key_name, menu_name, &command, &icon).unwrap();
         return;
-    }
-    
-    if args[1] == "code" {
-        let key_name = "AA";
-        let menu_name = "Open VSCode Here";
-        let command = r#""C:\Users\29115\AppData\Local\Programs\Microsoft VS Code\Code.exe" "%V""#;
-        let icon = r#"C:\Users\29115\AppData\Local\Programs\Microsoft VS Code\Code.exe"#;
-        create_reg(key_name, menu_name, command, icon).unwrap();
     }
     let _ = post_file(args[1].to_string());
 }

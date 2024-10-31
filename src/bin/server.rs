@@ -274,18 +274,18 @@ async fn main() -> Result<()> {
 
     let client = Arc::new(HttpClient::new(base_url, username, password));
 
-    // if let Err(e) = client.login().await {
-    //     eprintln!("登录失败: {}", e);
-    //     return Ok(());
-    // }
+    if let Err(e) = client.login().await {
+        eprintln!("登录失败: {}", e);
+        return Ok(());
+    }
 
     let client_clone = client.clone();
     let client_clone2 = client.clone();
     let heartbeat = tokio::spawn(async move {
         loop {
-            // if let Err(e) = client_clone.heartbeat().await {
-            //     eprintln!("心跳错误: {}", e);
-            // }
+            if let Err(e) = client_clone.heartbeat().await {
+                eprintln!("心跳错误: {}", e);
+            }
             println!("心跳完成");
             tokio::time::sleep(std::time::Duration::from_secs(60 * 28)).await;
         }
