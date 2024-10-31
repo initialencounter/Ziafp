@@ -1,3 +1,5 @@
+pub mod fs;
+pub mod dialog;
 use chrono::Local;
 
 pub fn get_today_date() -> String {
@@ -9,12 +11,5 @@ pub fn get_today_date() -> String {
     formatted_date
 }
 
-#[cfg(test)]
-mod tests {
-  use super::*;
-  #[test]
-  fn test_get_today_date() {
-    let date = get_today_date();
-    assert_eq!(date, "2024-10-31");
-  }
-}
+pub use fs::*;
+pub use dialog::*;
