@@ -250,8 +250,8 @@ impl HttpClient {
             .text("checkpdf", "true")
             .part("file", blob);
 
-        let url = format!("{}/rest/document/upload", "http://127.0.0.1:3000");
-        // let url = format!("{}/rest/document/upload", self.base_url);
+        // let url = format!("{}/rest/document/upload", "http://127.0.0.1:3000");
+        let url = format!("{}/rest/document/upload", self.base_url);
         let response = self.client.post(url).multipart(form).send().await?;
 
         if response.status().is_success() {
