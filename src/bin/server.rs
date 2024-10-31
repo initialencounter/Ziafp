@@ -142,6 +142,8 @@ struct QueryResult {
 struct ProjectRow {
     #[serde(rename = "projectId")]
     project_id: String,
+    #[serde(rename = "editStatus")]
+    edit_status: i8
 }
 
 struct HttpClient {
@@ -219,6 +221,9 @@ impl HttpClient {
         let result: QueryResult = response.json().unwrap();
         if result.rows.is_empty() {
             return Err("未找到项目ID".into());
+        }
+        if result.rows[0].edit_status > 2 {
+            return Err("没有权限修改".into());
         }
         Ok(result.rows[0].project_id.clone())
     }
