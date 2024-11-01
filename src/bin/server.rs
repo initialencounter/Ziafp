@@ -1,11 +1,13 @@
 use std::env;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::Mutex;
 
 use reqwest::header;
 use reqwest::{multipart, Client};
 use warp::Filter;
 
+use ziafp::logger::Logger;
 use ziafp::utils::{get_today_date, match_file, popup_message, prepare_file_info, RawFileInfo};
 
 async fn post_file_from_directory(path: PathBuf, client: &HttpClient) -> Vec<String> {
@@ -90,7 +92,7 @@ struct ProjectRow {
     #[serde(rename = "projectId")]
     project_id: String,
     #[serde(rename = "editStatus")]
-    edit_status: i8
+    edit_status: i8,
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -276,38 +278,64 @@ async fn main() -> Result<()> {
     let username = env::var("USER_NAME").expect("Error reading USER_NAME");
     let password = env::var("PASSWORD").expect("Error reading PASSWORD");
     let port = env::var("PORT").unwrap_or_else(|_| "25455".to_string());
+    let debug = env::var("DEBUG").unwrap_or_else(|_| "false".to_string());
+    let log_enabled = env::var("LOG_ENABLED").unwrap_or_else(|_| "false".to_string());
+
+    let logger = Arc::new(Mutex::new(Logger::new(
+        PathBuf::from("logs"),
+        "server",
+        log_enabled == "true",
+    )));
 
     let client = Arc::new(HttpClient::new(base_url, username, password));
 
-    if let Err(e) = client.login().await {
-        eprintln!("登录失败: {}", e);
-        return Ok(());
+    if debug == "false" {
+        if let Err(e) = client.login().await {
+            logger
+                .lock()
+                .unwrap()
+                .log("ERROR", &format!("登录失败: {}", e));
+            return Ok(());
+        }
     }
 
     let client_clone = client.clone();
     let client_clone2 = client.clone();
+    let logger_heartbeat = logger.clone();
     let heartbeat = tokio::spawn(async move {
         loop {
-            if let Err(e) = client_clone.heartbeat().await {
-                eprintln!("心跳错误: {}", e);
+            if debug == "false" {
+                if let Err(e) = client_clone.heartbeat().await {
+                    logger_heartbeat
+                        .lock()
+                        .unwrap()
+                        .log("ERROR", &format!("心跳失败: {}", e));
+                }
             }
-            println!("心跳完成");
+            logger_heartbeat.lock().unwrap().log("INFO", "心跳完成");
             tokio::time::sleep(std::time::Duration::from_secs(60 * 28)).await;
         }
     });
     // 设置 webhook 路由
+    let logger_upload = logger.clone();
     let routes = warp::post()
         .and(warp::path("upload"))
         .and(warp::body::content_length_limit(1024 * 16))
         .and(warp::body::json())
         .and(warp::any().map(move || client_clone2.clone()))
-        .then(|dir: DirectoryInfo, client: Arc<HttpClient>| async move {
-            tokio::spawn(async move {
-                let uploaded_files =
-                    post_file_from_directory(PathBuf::from(&dir.dir), &client).await;
-                println!("上传的文件: {:?}", uploaded_files);
-            });
-            warp::reply::json(&"已接收上传请求")
+        .then(move |dir: DirectoryInfo, client: Arc<HttpClient>| {
+            let logger_clone = logger_upload.clone();
+            async move {
+                tokio::spawn(async move {
+                    let uploaded_files =
+                        post_file_from_directory(PathBuf::from(&dir.dir), &client).await;
+                    logger_clone
+                        .lock()
+                        .unwrap()
+                        .log("INFO", &format!("上传的文件: {:?}", uploaded_files));
+                });
+                warp::reply::json(&"已接收上传请求")
+            }
         });
 
     // 启动服务器
@@ -317,9 +345,9 @@ async fn main() -> Result<()> {
 
     // 等待中断信号
     tokio::signal::ctrl_c().await?;
-    println!("收到关闭信号");
+    logger.lock().unwrap().log("INFO", "收到关闭信号");
     heartbeat.abort();
-    println!("服务已关闭");
+    logger.lock().unwrap().log("INFO", "服务已关闭");
 
     Ok(())
 }
