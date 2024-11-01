@@ -1,0 +1,51 @@
+name: Build Test
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  test:
+    name: build project
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@master
+
+    - name: Get version
+      id: get_version
+      shell: bash
+      run: |
+        echo "using version tag ${GITHUB_REF:10}"
+        echo ::set-output name=version::"${GITHUB_REF:10}"
+
+    - name: build_windows
+      run: |
+        $ENV:RUSTFLAGS='-C target-feature=+crt-static'
+        rustup target add x86_64-pc-windows-msvc
+        cargo build --features server --release --target x86_64-pc-windows-msvc
+        cargo build --features client --release --target x86_64-pc-windows-msvc
+      shell: pwsh
+        
+
+    - name: before_windows_upload
+      run: |
+        mkdir Release
+        cp target/x86_64-pc-windows-msvc/release/server.exe Release/server.exe
+        cp target/x86_64-pc-windows-msvc/release/client.exe Release/client.exe
+      shell: pwsh
+    
+    - name: Release
+      uses: softprops/action-gh-release@v2
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: |
+          Release/server.exe
+          Release/client.exe
+        name: 'Ziafp ${{ steps.get_version.outputs.VERSION }}'
