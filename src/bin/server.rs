@@ -1,7 +1,7 @@
 use std::env;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::Mutex;
+use tokio::sync::Mutex;
 
 use reqwest::header;
 use reqwest::{multipart, Client};
@@ -42,8 +42,12 @@ async fn process_single_file(file_info: RawFileInfo, client: &HttpClient) -> Res
         return Err("准备文件信息失败".into());
     };
 
-    let project_id = client.get_project_id(&file_info.project_no).await?;
-    println!("项目ID: {:?}", project_id);
+    let project_id: String;
+    if client.debug {
+        project_id = "123456AAAAAAAAAAAAAAAA".to_string();
+    } else {
+        project_id = client.get_project_id(&file_info.project_no).await?;
+    }
 
     client
         .post_file(
@@ -107,20 +111,35 @@ struct HttpClient {
     base_url: String,
     username: String,
     password: String,
+    debug: bool,
+    logger: Arc<Mutex<Logger>>,
 }
 
 impl HttpClient {
-    fn new(base_url: String, username: String, password: String) -> Self {
+    fn new(
+        base_url: String,
+        username: String,
+        password: String,
+        debug: bool,
+        log_enabled: bool,
+    ) -> Self {
         let client = reqwest::Client::builder()
             .cookie_store(true)
             .build()
             .unwrap();
+        let logger = Arc::new(Mutex::new(Logger::new(
+            PathBuf::from("logs"),
+            "server",
+            log_enabled,
+        )));
 
         HttpClient {
             client,
             base_url,
             username,
             password,
+            debug,
+            logger,
         }
     }
     async fn heartbeat(&self) -> Result<()> {
@@ -257,17 +276,31 @@ impl HttpClient {
             .text("checkpdf", "true")
             .part("file", blob);
 
-        // let url = format!("{}/rest/document/upload", "http://127.0.0.1:3000");
-        let url = format!("{}/rest/document/upload", self.base_url);
+        let url: String;
+        if self.debug {
+            url = format!("{}/rest/document/upload", "http://127.0.0.1:3000");
+        } else {
+            url = format!("{}/rest/document/upload", self.base_url);
+        }
         let response = self.client.post(url).multipart(form).send().await?;
 
         if response.status().is_success() {
-            println!("文件上传成功: {:?}", response.text().await?);
+            self.logger.lock().await.log(
+                "INFO",
+                &format!("文件上传成功: {:?}", response.text().await?),
+            );
             Ok(file_name.to_string())
         } else {
-            println!("文件上传失败，状态码: {:?}", response.status());
+            self.logger.lock().await.log(
+                "ERROR",
+                &format!("文件上传失败，状态码: {:?}", response.status()),
+            );
             Err("文件上传失败".into())
         }
+    }
+
+    async fn log(&self, level: &str, message: &str) {
+        self.logger.lock().await.log(level, message);
     }
 }
 
@@ -281,19 +314,22 @@ async fn main() -> Result<()> {
     let debug = env::var("DEBUG").unwrap_or_else(|_| "false".to_string());
     let log_enabled = env::var("LOG_ENABLED").unwrap_or_else(|_| "false".to_string());
 
-    let logger = Arc::new(Mutex::new(Logger::new(
-        PathBuf::from("logs"),
-        "server",
+    let client = Arc::new(Mutex::new(HttpClient::new(
+        base_url,
+        username,
+        password,
+        debug == "true",
         log_enabled == "true",
     )));
 
-    let client = Arc::new(HttpClient::new(base_url, username, password));
-
     if debug == "false" {
-        if let Err(e) = client.login().await {
-            logger
+        if let Err(e) = client.lock().await.login().await {
+            client
                 .lock()
-                .unwrap()
+                .await
+                .logger
+                .lock()
+                .await
                 .log("ERROR", &format!("登录失败: {}", e));
             return Ok(());
         }
@@ -301,42 +337,48 @@ async fn main() -> Result<()> {
 
     let client_clone = client.clone();
     let client_clone2 = client.clone();
-    let logger_heartbeat = logger.clone();
     let heartbeat = tokio::spawn(async move {
         loop {
             if debug == "false" {
-                if let Err(e) = client_clone.heartbeat().await {
-                    logger_heartbeat
+                if let Err(e) = client_clone.lock().await.heartbeat().await {
+                    client_clone
                         .lock()
-                        .unwrap()
+                        .await
+                        .logger
+                        .lock()
+                        .await
                         .log("ERROR", &format!("心跳失败: {}", e));
                 }
             }
-            logger_heartbeat.lock().unwrap().log("INFO", "心跳完成");
+            client_clone
+                .lock()
+                .await
+                .logger
+                .lock()
+                .await
+                .log("INFO", "心跳完成");
             tokio::time::sleep(std::time::Duration::from_secs(60 * 28)).await;
         }
     });
     // 设置 webhook 路由
-    let logger_upload = logger.clone();
     let routes = warp::post()
         .and(warp::path("upload"))
         .and(warp::body::content_length_limit(1024 * 16))
         .and(warp::body::json())
         .and(warp::any().map(move || client_clone2.clone()))
-        .then(move |dir: DirectoryInfo, client: Arc<HttpClient>| {
-            let logger_clone = logger_upload.clone();
-            async move {
+        .then(
+            move |dir: DirectoryInfo, client: Arc<Mutex<HttpClient>>| async move {
                 tokio::spawn(async move {
+                    let client_guard = client.lock().await;
                     let uploaded_files =
-                        post_file_from_directory(PathBuf::from(&dir.dir), &client).await;
-                    logger_clone
-                        .lock()
-                        .unwrap()
-                        .log("INFO", &format!("上传的文件: {:?}", uploaded_files));
+                        post_file_from_directory(PathBuf::from(&dir.dir), &client_guard).await;
+                    client_guard
+                        .log("INFO", &format!("上传的文件: {:?}", uploaded_files))
+                        .await;
                 });
                 warp::reply::json(&"已接收上传请求")
-            }
-        });
+            },
+        );
 
     // 启动服务器
     warp::serve(routes)
@@ -345,9 +387,9 @@ async fn main() -> Result<()> {
 
     // 等待中断信号
     tokio::signal::ctrl_c().await?;
-    logger.lock().unwrap().log("INFO", "收到关闭信号");
+    println!("服务已关闭");
     heartbeat.abort();
-    logger.lock().unwrap().log("INFO", "服务已关闭");
+    println!("心跳已关闭");
 
     Ok(())
 }
