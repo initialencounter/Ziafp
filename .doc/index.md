@@ -5,21 +5,21 @@ layout: home
 hero:
   name: "Ziafp"
   text: "Regedit for self-triggering"
-  tagline: My great project tagline
+  tagline: v0.2.3
   actions:
     - theme: brand
-      text: Markdown Examples
+      text: 快速开始
       link: /getting-started
     - theme: alt
-      text: API Examples
-      link: /api-examples
+      text: 启动
+      link: /run
 
 features:
-  - title: Feature A
-    details: Lorem ipsum dolor sit amet, consectetur adipiscing elit
-  - title: Feature B
-    details: Lorem ipsum dolor sit amet, consectetur adipiscing elit
-  - title: Feature C
-    details: Lorem ipsum dolor sit amet, consectetur adipiscing elit
+  - title: 自动匹配文件
+    details: 根据文件夹名称和文件类型自动匹配文件
+  - title: 一键上传
+    details: 一键上传匹配的文件
+  - title: 心跳
+    details: 防止登录过期
 ---
 
