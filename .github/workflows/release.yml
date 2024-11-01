@@ -29,8 +29,7 @@ jobs:
       run: |
         $ENV:RUSTFLAGS='-C target-feature=+crt-static'
         rustup target add x86_64-pc-windows-msvc
-        cargo build --features server --release --target x86_64-pc-windows-msvc
-        cargo build --features client --release --target x86_64-pc-windows-msvc
+        cargo build --features all --release --target x86_64-pc-windows-msvc
       shell: pwsh
         
 

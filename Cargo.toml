@@ -11,6 +11,7 @@ winres = "0.1.12"
 [features]
 client = []
 server = []
+all = ["server", "client"]
 
 [[bin]]
 name = "client"

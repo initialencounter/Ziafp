@@ -4,6 +4,7 @@ fn main() {
     {
         println!("cargo:warning=正在构建客户端");
         let mut res = winres::WindowsResource::new();
+        res.set_icon("./resources/favicon.ico");
         res.set_manifest(
             r#"
         <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
@@ -17,11 +18,13 @@ fn main() {
         </assembly>
         "#,
         );
-        res.set_icon("./resources/favicon.ico");
         res.compile().unwrap();
     }
     #[cfg(feature = "server")]
     {
+        let mut res = winres::WindowsResource::new();
+        res.set_icon("./resources/favicon.ico");
+        res.compile().unwrap();
         println!("cargo:warning=正在构建服务端");
     }
 }
