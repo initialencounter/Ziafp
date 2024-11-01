@@ -27,6 +27,7 @@
     "winapi",
     "winbase",
     "winreg",
+    "winres",
     "Ziafp"
   ]
 }
