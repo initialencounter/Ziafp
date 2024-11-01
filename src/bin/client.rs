@@ -44,15 +44,10 @@ fn main() {
         let current_exe_abs_path = current_exe.to_str().expect("无法获取当前执行文件路径");
         let key_name = "limsClient";
         let menu_name = "Upload file here";
-        let command = format!(r#""{}" %V"#, current_exe_abs_path);
+        let command = format!(r#""{}" "%V""#, current_exe_abs_path);
         let icon = format!(r#"{}"#, current_exe_abs_path);
         create_reg(key_name, menu_name, &command, &icon).unwrap();
         return;
     }
-    let mut merged_args = args[1].clone();
-    for arg in args.iter().skip(2) {
-        merged_args.push(' ');
-        merged_args.push_str(arg);
-    }
-    let _ = post_file(merged_args.to_string());
+    let _ = post_file(args[1].to_string());
 }
