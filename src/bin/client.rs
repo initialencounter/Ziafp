@@ -49,5 +49,10 @@ fn main() {
         create_reg(key_name, menu_name, &command, &icon).unwrap();
         return;
     }
-    let _ = post_file(args[1].to_string());
+    let mut merged_args = args[1].clone();
+    for arg in args.iter().skip(2) {
+        merged_args.push(' ');
+        merged_args.push_str(arg);
+    }
+    let _ = post_file(merged_args.to_string());
 }
