@@ -11,7 +11,17 @@ use ziafp::logger::Logger;
 use ziafp::utils::{get_today_date, match_file, popup_message, prepare_file_info, RawFileInfo};
 use ziafp::utils::regedit::{create_auto_run_reg, is_launched_from_registry, request_admin_and_restart};
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
+static LOGIN_STATUS: AtomicBool = AtomicBool::new(false);
+
 async fn post_file_from_directory(path: PathBuf, client: &HttpClient) -> Vec<String> {
+    client.log("INFO", &format!("开始从 {} 上传文件", path.to_str().unwrap())).await;
+    let current_exe = env::current_exe().expect("无法获取当前执行文件路径");
+    if !LOGIN_STATUS.load(Ordering::Relaxed) {
+        popup_message("登录失败", &format!("请先检查密码是否正确，日志中可能会有更多信息: 日志文件路径{:?}", current_exe.parent().unwrap().join("logs")));
+        return Vec::new();
+    }
     let raw_file_info = match_file(&path);
     let message = build_confirmation_message(&raw_file_info);
 
@@ -129,8 +139,9 @@ impl HttpClient {
             .build()
             .unwrap();
         let current_exe = env::current_exe().expect("无法获取当前执行文件路径");
+        let log_dir = PathBuf::from(current_exe.parent().unwrap().join("logs"));
         let logger = Arc::new(Mutex::new(Logger::new(
-            PathBuf::from(current_exe.parent().unwrap().join("logs")),
+            log_dir,
             "server",
             log_enabled,
         )));
@@ -153,12 +164,14 @@ impl HttpClient {
             ))
             .await
         {
+            LOGIN_STATUS.store(true, Ordering::Relaxed);
             self.logger
                 .lock()
                 .await
                 .log("INFO", &format!("心跳成功: {:?}", result.rows.len()));
             Ok(())
         } else {
+            LOGIN_STATUS.store(false, Ordering::Relaxed);
             self.logger
                 .lock()
                 .await
@@ -187,9 +200,11 @@ impl HttpClient {
             .await?;
 
         if response.status().is_success() {
+            LOGIN_STATUS.store(true, Ordering::Relaxed);
             self.logger.lock().await.log("INFO", "登录成功");
             Ok(())
         } else {
+            LOGIN_STATUS.store(false, Ordering::Relaxed);
             self.logger
                 .lock()
                 .await
@@ -372,8 +387,10 @@ async fn main() -> Result<()> {
     let heartbeat = tokio::spawn(async move {
         loop {
             if debug == "false" {
+                LOGIN_STATUS.store(false, Ordering::Relaxed);
                 client_clone.lock().await.heartbeat().await.unwrap();
             } else {
+                LOGIN_STATUS.store(true, Ordering::Relaxed);
                 client_clone.lock().await.log("INFO", "调试模式，跳过心跳").await;
             }
             tokio::time::sleep(std::time::Duration::from_secs(60 * 28)).await;
