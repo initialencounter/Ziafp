@@ -65,7 +65,7 @@ impl TrayHandler {
     }
 }
 
-fn load_icon(buffer: &[u8]) -> tray_icon::Icon {
+fn load_icon(buffer: &[u8]) -> Icon {
     let (icon_rgba, icon_width, icon_height) = {
         let image = image::load_from_memory(buffer)
             .expect("Failed to open icon path")
@@ -74,5 +74,5 @@ fn load_icon(buffer: &[u8]) -> tray_icon::Icon {
         let rgba = image.into_raw();
         (rgba, width, height)
     };
-    tray_icon::Icon::from_rgba(icon_rgba, icon_width, icon_height).expect("Failed to open icon")
+    Icon::from_rgba(icon_rgba, icon_width, icon_height).expect("Failed to open icon")
 }

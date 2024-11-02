@@ -19,7 +19,11 @@ impl Logger {
         }
         std::fs::create_dir_all(&log_dir).expect("无法创建日志目录");
 
-        let log_path = log_dir.join(format!("{}-{}.log", service_name, Local::now().format("%Y-%m-%d")));
+        let log_path = log_dir.join(format!(
+            "{}-{}.log",
+            service_name,
+            Local::now().format("%Y-%m-%d")
+        ));
         let file = OpenOptions::new()
             .create(true)
             .append(true)
@@ -38,20 +42,20 @@ impl Logger {
             "DEBUG" => level.blue().bold(),
             _ => level.normal(),
         };
-        
+
         let log_entry = format!(
             "[{}] {} - {}\n",
             now.format("%Y-%m-%d %H:%M:%S"),
             level,
             message
         );
-        
+
         if self.enabled {
             self.file
                 .write_all(log_entry.as_bytes())
                 .expect("写入日志失败");
         }
-        
+
         let colored_log = format!(
             "[{}] {} - {}",
             now.format("%Y-%m-%d %H:%M:%S").to_string().bright_black(),
