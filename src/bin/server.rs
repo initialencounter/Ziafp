@@ -9,6 +9,7 @@ use warp::Filter;
 
 use ziafp::logger::Logger;
 use ziafp::utils::{get_today_date, match_file, popup_message, prepare_file_info, RawFileInfo};
+use ziafp::utils::regedit::{create_auto_run_reg, is_launched_from_registry, request_admin_and_restart};
 
 async fn post_file_from_directory(path: PathBuf, client: &HttpClient) -> Vec<String> {
     let raw_file_info = match_file(&path);
@@ -127,8 +128,9 @@ impl HttpClient {
             .cookie_store(true)
             .build()
             .unwrap();
+        let current_exe = env::current_exe().expect("无法获取当前执行文件路径");
         let logger = Arc::new(Mutex::new(Logger::new(
-            PathBuf::from("logs"),
+            PathBuf::from(current_exe.parent().unwrap().join("logs")),
             "server",
             log_enabled,
         )));
@@ -331,7 +333,16 @@ impl HttpClient {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    dotenv::from_path("local.env").ok();
+    let current_exe = env::current_exe().expect("无法获取当前执行文件路径");
+    // 如果程序不是从注册表启动，并且没有管理员权限，则请求管理员权限并重新启动
+    if !is_launched_from_registry() {
+        if request_admin_and_restart() {
+            return Ok(());
+        }
+        let _ =create_auto_run_reg("ZiafpServer", &current_exe.to_str().unwrap());
+    }
+
+    dotenv::from_path(format!("{}/local.env", current_exe.parent().unwrap().to_str().unwrap())).ok();
     let base_url = env::var("BASE_URL").expect("Error reading BASE_URL");
     let username = env::var("USER_NAME").expect("Error reading USER_NAME");
     let password = env::var("PASSWORD").expect("Error reading PASSWORD");

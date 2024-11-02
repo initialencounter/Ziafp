@@ -1,5 +1,6 @@
 pub mod fs;
 pub mod dialog;
+pub mod regedit;
 use chrono::Local;
 
 pub fn get_today_date() -> String {
@@ -13,3 +14,4 @@ pub fn get_today_date() -> String {
 
 pub use fs::*;
 pub use dialog::*;
+pub use regedit::*;
