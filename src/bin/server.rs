@@ -8,18 +8,43 @@ use reqwest::{multipart, Client};
 use warp::Filter;
 
 use ziafp::logger::Logger;
+use ziafp::utils::regedit::create_auto_run_reg;
+use ziafp::utils::launch::{is_launched_from_registry, request_admin_and_restart};
 use ziafp::utils::{get_today_date, match_file, popup_message, prepare_file_info, RawFileInfo};
-use ziafp::utils::regedit::{create_auto_run_reg, is_launched_from_registry, request_admin_and_restart};
 
 use std::sync::atomic::{AtomicBool, Ordering};
+
+use tao::event_loop::{ControlFlow, EventLoop};
+use tray_icon::{
+    menu::{Menu, MenuEvent, MenuItem},
+    TrayIconBuilder,
+};
+
+use ziafp::window::hide_console_window;
+
+use windows::Win32::System::Console::GetConsoleWindow;
+use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_SHOW};
+
+use std::ptr;
 
 static LOGIN_STATUS: AtomicBool = AtomicBool::new(false);
 
 async fn post_file_from_directory(path: PathBuf, client: &HttpClient) -> Vec<String> {
-    client.log("INFO", &format!("开始从 {} 上传文件", path.to_str().unwrap())).await;
+    client
+        .log(
+            "INFO",
+            &format!("开始从 {} 上传文件", path.to_str().unwrap()),
+        )
+        .await;
     let current_exe = env::current_exe().expect("无法获取当前执行文件路径");
     if !LOGIN_STATUS.load(Ordering::Relaxed) {
-        popup_message("登录失败", &format!("请先检查密码是否正确，日志中可能会有更多信息: 日志文件路径{:?}", current_exe.parent().unwrap().join("logs")));
+        popup_message(
+            "登录失败",
+            &format!(
+                "请先检查密码是否正确，日志中可能会有更多信息: 日志文件路径{:?}",
+                current_exe.parent().unwrap().join("logs")
+            ),
+        );
         return Vec::new();
     }
     let raw_file_info = match_file(&path);
@@ -36,7 +61,9 @@ async fn post_file_from_directory(path: PathBuf, client: &HttpClient) -> Vec<Str
             uploaded_files.push(file_name);
         }
     }
-    client.log("INFO", &format!("上传的文件: {:?}", uploaded_files)).await;
+    client
+        .log("INFO", &format!("上传的文件: {:?}", uploaded_files))
+        .await;
     uploaded_files
 }
 
@@ -140,11 +167,7 @@ impl HttpClient {
             .unwrap();
         let current_exe = env::current_exe().expect("无法获取当前执行文件路径");
         let log_dir = PathBuf::from(current_exe.parent().unwrap().join("logs"));
-        let logger = Arc::new(Mutex::new(Logger::new(
-            log_dir,
-            "server",
-            log_enabled,
-        )));
+        let logger = Arc::new(Mutex::new(Logger::new(log_dir, "server", log_enabled)));
 
         HttpClient {
             client,
@@ -172,10 +195,7 @@ impl HttpClient {
             Ok(())
         } else {
             LOGIN_STATUS.store(false, Ordering::Relaxed);
-            self.logger
-                .lock()
-                .await
-                .log("ERROR", "心跳失败");
+            self.logger.lock().await.log("ERROR", "心跳失败");
             Err("心跳失败".into())
         }
     }
@@ -277,10 +297,10 @@ impl HttpClient {
             return Err("未找到项目ID".into());
         }
         if result.rows[0].edit_status > 2 {
-            self.logger
-                .lock()
-                .await
-                .log("ERROR", &format!("没有权限修改: {:?}", result.rows[0].project_id));
+            self.logger.lock().await.log(
+                "ERROR",
+                &format!("没有权限修改: {:?}", result.rows[0].project_id),
+            );
             return Err("没有权限修改".into());
         }
         Ok(result.rows[0].project_id.clone())
@@ -349,15 +369,19 @@ impl HttpClient {
 #[tokio::main]
 async fn main() -> Result<()> {
     let current_exe = env::current_exe().expect("无法获取当前执行文件路径");
-    // 如果程序不是从注册表启动，并且没有管理员权限，则请求管理员权限并重新启动
+    if request_admin_and_restart() {
+        return Ok(());
+    }
+    // 如果程序不是从注册表启动，则创建注册表自启动
     if !is_launched_from_registry() {
-        if request_admin_and_restart() {
-            return Ok(());
-        }
-        let _ =create_auto_run_reg("ZiafpServer", &current_exe.to_str().unwrap());
+        let _ = create_auto_run_reg("ZiafpServer", &current_exe.to_str().unwrap());
     }
 
-    dotenv::from_path(format!("{}/local.env", current_exe.parent().unwrap().to_str().unwrap())).ok();
+    dotenv::from_path(format!(
+        "{}/local.env",
+        current_exe.parent().unwrap().to_str().unwrap()
+    ))
+    .ok();
     let base_url = env::var("BASE_URL").expect("Error reading BASE_URL");
     let username = env::var("USER_NAME").expect("Error reading USER_NAME");
     let password = env::var("PASSWORD").expect("Error reading PASSWORD");
@@ -379,7 +403,7 @@ async fn main() -> Result<()> {
             return Ok(());
         }
     } else {
-        client.lock().await.log("INFO", "调试模式，跳过登录").await;    
+        client.lock().await.log("INFO", "调试模，跳过登录").await;
     }
 
     let client_clone = client.clone();
@@ -391,7 +415,11 @@ async fn main() -> Result<()> {
                 client_clone.lock().await.heartbeat().await.unwrap();
             } else {
                 LOGIN_STATUS.store(true, Ordering::Relaxed);
-                client_clone.lock().await.log("INFO", "调试模式，跳过心跳").await;
+                client_clone
+                    .lock()
+                    .await
+                    .log("INFO", "调试模式，跳过心跳")
+                    .await;
             }
             tokio::time::sleep(std::time::Duration::from_secs(60 * 28)).await;
         }
@@ -412,17 +440,70 @@ async fn main() -> Result<()> {
             },
         );
 
-    // 启动服务器
-    warp::serve(routes)
-        // not allow other ip to access
-        .run(([127, 0, 0, 1], port.parse::<u16>().unwrap()))
-        .await;
+    // 创建事件循环
+    let event_loop = EventLoop::new();
 
-    // 等待中断信号
-    tokio::signal::ctrl_c().await?;
-    println!("服务已关闭");
-    heartbeat.abort();
-    println!("心跳已关闭");
+    // 只在非调试模式下隐藏窗口
+    if !std::env::args().any(|arg| arg == "--debug") {
+        let _ = hide_console_window();
+    }
 
-    Ok(())
+    // 创建托盘菜单
+    let tray_menu = Menu::new();
+    let show_console_item = MenuItem::new("显示终端", true, None);
+    let hide_console_item = MenuItem::new("隐藏终端", true, None);
+    let show_console_id = show_console_item.id().clone();
+    let hide_console_id = hide_console_item.id().clone();
+    let quit_item = MenuItem::new("退出", true, None);
+    let quit_id = quit_item.id().clone();
+
+    tray_menu.append(&show_console_item).unwrap();
+    tray_menu.append(&hide_console_item).unwrap();
+    tray_menu.append(&quit_item).unwrap();
+
+    // 创建托盘图标
+    let _tray_icon = TrayIconBuilder::new()
+        .with_menu(Box::new(tray_menu))
+        .with_tooltip("文件上传服务")
+        .build()
+        .unwrap();
+
+    // 处理托盘菜单事件
+    let menu_channel = MenuEvent::receiver();
+    let event_loop_proxy = event_loop.create_proxy();
+
+    tokio::spawn(async move {
+        while let Ok(event) = menu_channel.recv() {
+            if event.id == quit_id {
+                let _ = event_loop_proxy.send_event(());
+            } else if event.id == show_console_id {
+                unsafe {
+                    let window = GetConsoleWindow();
+                    if window.0 != ptr::null_mut() {
+                        let _ = ShowWindow(window, SW_SHOW);
+                    }
+                }
+            } else if event.id == hide_console_id {
+                let _ = hide_console_window();
+            }
+        }
+    });
+
+    // 启动 web 服务器
+    let server = warp::serve(routes).run(([127, 0, 0, 1], port.parse::<u16>().unwrap()));
+
+    let server_handle = tokio::spawn(server);
+
+    // 运行事件循环
+    event_loop.run(move |event, _, control_flow| {
+        *control_flow = ControlFlow::Wait;
+
+        if let tao::event::Event::UserEvent(()) = event {
+            *control_flow = ControlFlow::Exit;
+            server_handle.abort();
+            heartbeat.abort();
+            println!("服务已关闭");
+            println!("心跳已关闭");
+        }
+    });
 }
