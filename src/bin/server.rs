@@ -8,24 +8,16 @@ use reqwest::{multipart, Client};
 use warp::Filter;
 
 use ziafp::logger::Logger;
-use ziafp::utils::regedit::create_auto_run_reg;
 use ziafp::utils::launch::{is_launched_from_registry, request_admin_and_restart};
+use ziafp::utils::regedit::create_auto_run_reg;
 use ziafp::utils::{get_today_date, match_file, popup_message, prepare_file_info, RawFileInfo};
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use tao::event_loop::{ControlFlow, EventLoop};
-use tray_icon::{
-    menu::{Menu, MenuEvent, MenuItem},
-    TrayIconBuilder,
-};
+use ziafp::tray::TrayHandler;
 
 use ziafp::window::hide_console_window;
-
-use windows::Win32::System::Console::GetConsoleWindow;
-use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_SHOW};
-
-use std::ptr;
 
 static LOGIN_STATUS: AtomicBool = AtomicBool::new(false);
 
@@ -448,50 +440,11 @@ async fn main() -> Result<()> {
         let _ = hide_console_window();
     }
 
-    // 创建托盘菜单
-    let tray_menu = Menu::new();
-    let show_console_item = MenuItem::new("显示终端", true, None);
-    let hide_console_item = MenuItem::new("隐藏终端", true, None);
-    let show_console_id = show_console_item.id().clone();
-    let hide_console_id = hide_console_item.id().clone();
-    let quit_item = MenuItem::new("退出", true, None);
-    let quit_id = quit_item.id().clone();
-
-    tray_menu.append(&show_console_item).unwrap();
-    tray_menu.append(&hide_console_item).unwrap();
-    tray_menu.append(&quit_item).unwrap();
-
-    // 创建托盘图标
-    let _tray_icon = TrayIconBuilder::new()
-        .with_menu(Box::new(tray_menu))
-        .with_tooltip("文件上传服务")
-        .build()
-        .unwrap();
-
-    // 处理托盘菜单事件
-    let menu_channel = MenuEvent::receiver();
-    let event_loop_proxy = event_loop.create_proxy();
-
-    tokio::spawn(async move {
-        while let Ok(event) = menu_channel.recv() {
-            if event.id == quit_id {
-                let _ = event_loop_proxy.send_event(());
-            } else if event.id == show_console_id {
-                unsafe {
-                    let window = GetConsoleWindow();
-                    if window.0 != ptr::null_mut() {
-                        let _ = ShowWindow(window, SW_SHOW);
-                    }
-                }
-            } else if event.id == hide_console_id {
-                let _ = hide_console_window();
-            }
-        }
-    });
+    // 创建托盘
+    let _tray_handler = TrayHandler::new(event_loop.create_proxy());
 
     // 启动 web 服务器
     let server = warp::serve(routes).run(([127, 0, 0, 1], port.parse::<u16>().unwrap()));
-
     let server_handle = tokio::spawn(server);
 
     // 运行事件循环
