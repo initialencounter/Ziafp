@@ -386,7 +386,8 @@ async fn main() -> Result<()> {
 
     // 启动服务器
     warp::serve(routes)
-        .run(([0, 0, 0, 0], port.parse::<u16>().unwrap()))
+        // not allow other ip to access
+        .run(([127, 0, 0, 1], port.parse::<u16>().unwrap()))
         .await;
 
     // 等待中断信号
