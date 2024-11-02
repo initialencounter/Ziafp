@@ -29,6 +29,10 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-cargo-
 
+    - uses: extractions/setup-just@v1
+      with:
+        just-version: 1.5.0  # optional semver specification, otherwise latest
+
     - name: Get version
       id: get_version
       shell: bash
@@ -41,8 +45,7 @@ jobs:
         $ENV:RUSTFLAGS='-C target-feature=+crt-static'
         $ENV:CARGO_BUILD_JOBS="$(nproc)"
         rustup target add x86_64-pc-windows-msvc
-        cargo build --features client --release --target x86_64-pc-windows-msvc
-        cargo build --features server --release --target x86_64-pc-windows-msvc
+        just build-release
       shell: pwsh
         
 
