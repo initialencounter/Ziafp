@@ -25,7 +25,7 @@ async fn post_file_from_directory(path: PathBuf, client: &HttpClient) -> Vec<Str
             uploaded_files.push(file_name);
         }
     }
-
+    client.log("INFO", &format!("上传的文件: {:?}", uploaded_files)).await;
     uploaded_files
 }
 
@@ -144,13 +144,25 @@ impl HttpClient {
     }
     async fn heartbeat(&self) -> Result<()> {
         let today_date = get_today_date();
-        let _ = self
+        if let Ok(result) = self
             .query_project(&format!(
                 "systemId=sek&startDate={}&endDate={}&page=1&rows=10",
                 today_date, today_date
             ))
-            .await?;
-        Ok(())
+            .await
+        {
+            self.logger
+                .lock()
+                .await
+                .log("INFO", &format!("心跳成功: {:?}", result.rows.len()));
+            Ok(())
+        } else {
+            self.logger
+                .lock()
+                .await
+                .log("ERROR", "心跳失败");
+            Err("心跳失败".into())
+        }
     }
     async fn login(&self) -> Result<()> {
         let response = self
@@ -173,8 +185,13 @@ impl HttpClient {
             .await?;
 
         if response.status().is_success() {
+            self.logger.lock().await.log("INFO", "登录成功");
             Ok(())
         } else {
+            self.logger
+                .lock()
+                .await
+                .log("ERROR", &format!("登录失败: {:?}", response.text().await?));
             Err("登录失败".into())
         }
     }
@@ -236,9 +253,17 @@ impl HttpClient {
         );
         let result: QueryResult = self.query_project(&query_string).await.unwrap();
         if result.rows.is_empty() {
+            self.logger
+                .lock()
+                .await
+                .log("ERROR", &format!("未找到项目ID: {:?}", query_string));
             return Err("未找到项目ID".into());
         }
         if result.rows[0].edit_status > 2 {
+            self.logger
+                .lock()
+                .await
+                .log("ERROR", &format!("没有权限修改: {:?}", result.rows[0].project_id));
             return Err("没有权限修改".into());
         }
         Ok(result.rows[0].project_id.clone())
@@ -322,17 +347,13 @@ async fn main() -> Result<()> {
         log_enabled == "true",
     )));
 
+    client.lock().await.log("INFO", "开始运行").await;
     if debug == "false" {
-        if let Err(e) = client.lock().await.login().await {
-            client
-                .lock()
-                .await
-                .logger
-                .lock()
-                .await
-                .log("ERROR", &format!("登录失败: {}", e));
+        if let Err(_e) = client.lock().await.login().await {
             return Ok(());
         }
+    } else {
+        client.lock().await.log("INFO", "调试模式，跳过登录").await;    
     }
 
     let client_clone = client.clone();
@@ -340,23 +361,10 @@ async fn main() -> Result<()> {
     let heartbeat = tokio::spawn(async move {
         loop {
             if debug == "false" {
-                if let Err(e) = client_clone.lock().await.heartbeat().await {
-                    client_clone
-                        .lock()
-                        .await
-                        .logger
-                        .lock()
-                        .await
-                        .log("ERROR", &format!("心跳失败: {}", e));
-                }
+                client_clone.lock().await.heartbeat().await.unwrap();
+            } else {
+                client_clone.lock().await.log("INFO", "调试模式，跳过心跳").await;
             }
-            client_clone
-                .lock()
-                .await
-                .logger
-                .lock()
-                .await
-                .log("INFO", "心跳完成");
             tokio::time::sleep(std::time::Duration::from_secs(60 * 28)).await;
         }
     });
@@ -370,11 +378,7 @@ async fn main() -> Result<()> {
             move |dir: DirectoryInfo, client: Arc<Mutex<HttpClient>>| async move {
                 tokio::spawn(async move {
                     let client_guard = client.lock().await;
-                    let uploaded_files =
-                        post_file_from_directory(PathBuf::from(&dir.dir), &client_guard).await;
-                    client_guard
-                        .log("INFO", &format!("上传的文件: {:?}", uploaded_files))
-                        .await;
+                    post_file_from_directory(PathBuf::from(&dir.dir), &client_guard).await;
                 });
                 warp::reply::json(&"已接收上传请求")
             },
