@@ -5,7 +5,7 @@ layout: home
 hero:
   name: "Ziafp"
   text: "Regedit for self-triggering"
-  tagline: v0.2.3
+  tagline: v0.4.0
   actions:
     - theme: brand
       text: 快速开始
