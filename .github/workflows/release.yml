@@ -45,7 +45,9 @@ jobs:
         $ENV:RUSTFLAGS='-C target-feature=+crt-static'
         $ENV:CARGO_BUILD_JOBS="$(nproc)"
         rustup target add x86_64-pc-windows-msvc
-        just build-release
+        cargo build --bin client --features client --release
+        cargo build --bin server --features server --release
+        cargo build --bin cfth --features cfth --release
       shell: pwsh
         
 
@@ -55,6 +57,7 @@ jobs:
         mkdir Release
         cp target/x86_64-pc-windows-msvc/release/server.exe Release/server.exe
         cp target/x86_64-pc-windows-msvc/release/client.exe Release/client.exe
+        cp target/x86_64-pc-windows-msvc/release/cfth.exe Release/cfth.exe
       shell: pwsh
     
     - name: Release
@@ -64,4 +67,5 @@ jobs:
         files: |
           Release/server.exe
           Release/client.exe
+          Release/cfth.exe
         name: 'Ziafp ${{ steps.get_version.outputs.VERSION }}'

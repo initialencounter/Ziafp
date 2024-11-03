@@ -1,4 +1,3 @@
-#[cfg(windows)]
 fn main() {
     #[cfg(feature = "client")]
     {
@@ -28,7 +27,12 @@ fn main() {
         res.compile().unwrap();
         println!("cargo:warning=正在构建服务端");
     }
+    #[cfg(feature = "cfth")]
+    {
+        let mut res = winres::WindowsResource::new();
+        res.set_icon("./resources/cfth.ico");
+        res.compile().unwrap();
+        println!("cargo:warning=正在构建文件复制工具");
+        embed_resource::compile("resources/icon-cfth.rc", embed_resource::NONE);
+    }
 }
-
-#[cfg(unix)]
-fn main() {}

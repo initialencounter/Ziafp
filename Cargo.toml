@@ -22,6 +22,7 @@ winres = "0.1.12"
 [features]
 client = []
 server = []
+cfth = []
 
 [[bin]]
 name = "client"
@@ -32,6 +33,11 @@ required-features = ["client"]
 name = "server"
 path = "src/bin/server.rs"
 required-features = ["server"]
+
+[[bin]]
+name = "cfth"
+path = "src/bin/cfth.rs"
+required-features = ["cfth"]
 
 [dependencies]
 lazy_static = "1.5.0"
@@ -55,3 +61,5 @@ windows = { version = "0.58.0", features = [
   "Win32_System_Console"
 ] }
 image = "0.25.4"
+copypasta = "0.10.1"
+enigo = "0.2.1"
