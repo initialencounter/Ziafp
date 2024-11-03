@@ -35,4 +35,12 @@ fn main() {
         println!("cargo:warning=正在构建文件复制工具");
         embed_resource::compile("resources/icon-cfth.rc", embed_resource::NONE);
     }
+    #[cfg(feature = "doc")]
+    {
+        let mut res = winres::WindowsResource::new();
+        res.set_icon("./resources/doc.ico");
+        res.compile().unwrap();
+        println!("cargo:warning=正在构建文档编辑工具");
+        embed_resource::compile("resources/icon-doc.rc", embed_resource::NONE);
+    }
 }

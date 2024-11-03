@@ -19,6 +19,25 @@ use ziafp::tray::TrayHandler;
 
 use ziafp::window::hide_console_window;
 
+use serde::{Deserialize, Serialize};
+
+use std::fmt;
+use warp::reject::Reject;
+
+// 自定义错误类型
+#[derive(Debug, Serialize)]
+struct CustomError {
+    message: String,
+}
+
+impl fmt::Display for CustomError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.message)
+    }
+}
+
+impl Reject for CustomError {}
+
 static LOGIN_STATUS: AtomicBool = AtomicBool::new(false);
 
 async fn post_file_from_directory(path: PathBuf, client: &HttpClient) -> Vec<String> {
@@ -116,17 +135,19 @@ fn parse_date(date_text: &str) -> Result<(String, String)> {
     }
 }
 
-#[derive(serde::Deserialize)]
+#[derive(Deserialize, Serialize)]
 struct QueryResult {
     rows: Vec<ProjectRow>,
 }
 
-#[derive(serde::Deserialize)]
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct ProjectRow {
-    #[serde(rename = "projectId")]
+    item_c_name: String,
+    item_e_name: String,
+    edit_status: i64,
     project_id: String,
-    #[serde(rename = "editStatus")]
-    edit_status: i8,
+    project_no: String,
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -399,7 +420,6 @@ async fn main() -> Result<()> {
     }
 
     let client_clone = client.clone();
-    let client_clone2 = client.clone();
     let heartbeat = tokio::spawn(async move {
         loop {
             if debug == "false" {
@@ -421,7 +441,10 @@ async fn main() -> Result<()> {
         .and(warp::path("upload"))
         .and(warp::body::content_length_limit(1024 * 16))
         .and(warp::body::json())
-        .and(warp::any().map(move || client_clone2.clone()))
+        .and(warp::any().map({
+            let client = client.clone();
+            move || client.clone()
+        }))
         .then(
             move |dir: DirectoryInfo, client: Arc<Mutex<HttpClient>>| async move {
                 tokio::spawn(async move {
@@ -432,6 +455,43 @@ async fn main() -> Result<()> {
             },
         );
 
+    let doc_routes = warp::get()
+        .and(warp::path("get-project-info"))
+        .and(warp::path::param::<String>())
+        .and(warp::any().map({
+            let client = client.clone();
+            move || client.clone()
+        }))
+        .then(
+            move |project_no: String, client: Arc<Mutex<HttpClient>>| async move {
+                client.lock().await.log("INFO", &format!("GET /get-project-info: {:?}", project_no)).await;
+                let result: std::result::Result<_, warp::Rejection> = async {
+                    let (start_date, end_date) = parse_date(&project_no)
+                        .map_err(|e| warp::reject::custom(CustomError { message: e.to_string() }))?;
+                    let system_id = if project_no.starts_with("PEK") {
+                        "pek"
+                    } else {
+                        "sek"
+                    };
+
+                    let query_string = format!(
+                        "systemId={}&category=battery&projectNo={}&startDate={}&endDate={}&page=1&rows=10",
+                        system_id, project_no, start_date, end_date
+                    );
+                    let res = client.lock().await.query_project(&query_string)
+                        .await
+                        .map_err(|e| warp::reject::custom(CustomError { message: e.to_string() }))?;
+                    Ok(warp::reply::json(&res))
+                }
+                .await;
+
+                if let Ok(result) = result {
+                    result
+                } else {
+                    warp::reply::json(&CustomError { message: "未找到项目ID".to_string() })
+                }
+            },
+        );
     // 创建事件循环
     let event_loop = EventLoop::new();
 
@@ -443,8 +503,9 @@ async fn main() -> Result<()> {
     // 创建托盘
     let _tray_handler = TrayHandler::new(event_loop.create_proxy());
 
+    let combined_routes = routes.or(doc_routes);
     // 启动 web 服务器
-    let server = warp::serve(routes).run(([127, 0, 0, 1], port.parse::<u16>().unwrap()));
+    let server = warp::serve(combined_routes).run(([127, 0, 0, 1], port.parse::<u16>().unwrap()));
     let server_handle = tokio::spawn(server);
 
     // 运行事件循环

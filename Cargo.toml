@@ -22,6 +22,7 @@ winres = "0.1.12"
 client = []
 server = []
 cfth = []
+doc = []
 
 [[bin]]
 name = "client"
@@ -37,6 +38,11 @@ required-features = ["server"]
 name = "cfth"
 path = "src/bin/cfth.rs"
 required-features = ["cfth"]
+
+[[bin]]
+name = "doc"
+path = "src/bin/doc.rs"
+required-features = ["doc"]
 
 [dependencies]
 lazy_static = "1.5.0"

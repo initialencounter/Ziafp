@@ -1,0 +1,8 @@
+*.docx
+*.doc
+*.docm
+*.docx
+.idea
+.vscode
+*.pdf
+__pycache__
