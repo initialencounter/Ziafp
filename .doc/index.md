@@ -13,6 +13,12 @@ hero:
     - theme: alt
       text: 启动
       link: /run
+    - theme: alt
+      text: 文件复制
+      link: /cfth
+    - theme: alt
+      text: 文档生成
+      link: /doc
 
 features:
   - title: 自动匹配文件

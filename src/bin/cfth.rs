@@ -157,7 +157,7 @@ fn main() {
                 return;
             }
         }
-        let current_exe = env::current_exe().expect("无法获取当前执行文件���径");
+        let current_exe = env::current_exe().expect("无法获取当前执行文件路径");
         let current_exe_abs_path = current_exe.to_str().expect("无法获取当前执行文件路径");
         let key_name = "cfth";
         let menu_name = "Copy file to here";
