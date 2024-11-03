@@ -10,7 +10,7 @@ dev-c:
     cargo run --features client --bin client
 
 dev-s:
-    cargo run --features client --bin server
+    cargo run --features server --bin server
 
 lint-c:
     cargo clippy -- -D warnings --bin client --features client
