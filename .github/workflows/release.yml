@@ -34,18 +34,18 @@ jobs:
         cargo build --bin client --features client --release
         cargo build --bin server --features server --release
         cargo build --bin cfth --features cfth --release
-        ls -ah target/x86_64-pc-windows-msvc/release/
+        Get-ChildItem .\target\release\
       shell: pwsh
         
 
     - name: before_windows_upload
       if: startsWith(github.ref, 'refs/tags/')
       run: |
-        mkdir Release
-        ls -ah target/x86_64-pc-windows-msvc/release/
-        cp target/x86_64-pc-windows-msvc/release/server.exe Release/server.exe
-        cp target/x86_64-pc-windows-msvc/release/client.exe Release/client.exe
-        cp target/x86_64-pc-windows-msvc/release/cfth.exe Release/cfth.exe
+        New-Item -ItemType Directory -Force -Path Release
+        Get-ChildItem .\target\release\
+        Copy-Item .\target\release\server.exe Release\server.exe
+        Copy-Item .\target\release\client.exe Release\client.exe
+        Copy-Item .\target\release\cfth.exe Release\cfth.exe
       shell: pwsh
     
     - name: Release
