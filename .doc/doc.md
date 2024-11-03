@@ -11,6 +11,9 @@
 ### 前置条件
 
 - 需要安装 [server](getting-started.md)
+- 需要安装 [doc-modifier](https://github.com/initialencounter/doc-modifier)
+- 需要安装 python
+- 需要安装 wps 或 office word
 
 ### 下载
 
@@ -20,6 +23,18 @@
    - 保留程序。
      ![保留程序步骤1](image-1.png)
      ![保留程序步骤2](image-2.png)
+
+### 安装 doc-modifier
+
+1. 前往 [doc-modifier](https://github.com/initialencounter/Ziafp/blob/master/doc-modifier/main.py) 下载 `main.py`。
+2. 安装 python，并安装python依赖。
+```shell
+pip install pywin32 fastapi pydantic uvicorn -i https://pypi.tuna.tsinghua.edu.cn/simple
+```
+3. 运行 `main.py`，启动服务。
+```shell
+python main.py
+```
 
 ### 修改注册表
 
