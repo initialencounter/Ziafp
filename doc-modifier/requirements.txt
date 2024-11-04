@@ -2,3 +2,4 @@ pywin32
 fastapi
 pydantic
 uvicorn
+python-docx

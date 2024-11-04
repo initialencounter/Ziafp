@@ -3,6 +3,7 @@ from pydantic import BaseModel
 import os
 import win32com.client
 import pythoncom
+from docx import Document
 
 app = FastAPI()
 
@@ -73,6 +74,48 @@ def edit_doc_file(source_path, save_dir, project_no, project_name, is_965, is_po
             word.Quit()
             word = None
 
+
+def edit_docx_file(source_path):
+    try:
+        # 打开文档
+        doc = Document(source_path)
+        # 替换UN38.3.3(f)和UN38.3.3(g)
+        for table in doc.tables:
+            # 遍历每个行
+            for row in table.rows:
+                # 遍历每个单元格
+                for cell in row.cells:
+                    # 遍历单元格中的每个段落
+                    for paragraph in cell.paragraphs:
+                        # 检查段落中的每个运行
+                        for run in paragraph.runs:
+                            if "UN38.3.3(f)" in paragraph.text:
+                                paragraph.text = paragraph.text.replace(
+                                    "UN38.3.3(f)",
+                                    "UN38.3.3.1(f)或/or\nUN38.3.3.2(d)"
+                                )
+                            if "UN38.3.3(g)" in paragraph.text:
+                                paragraph.text = paragraph.text.replace(
+                                    "UN38.3.3(g)",
+                                    "UN38.3.3.1(f)或/or\nUN38.3.3.2(d)"
+                                )
+        # 替换标题
+        for paragraph in doc.paragraphs:
+            for run in paragraph.runs:
+                if "锂电池UN38.3试验概要" in run.text:
+                    run.text = run.text.replace(
+                        "锂电池UN38.3试验概要",
+                        "锂电池/钠离子电池UN38.3试验概要"
+                    )
+                if "Lithium Battery Test Summary" in run.text:
+                    run.text = run.text.replace(
+                        "Lithium Battery Test Summary",
+                        "Test Summary"
+                    )
+        doc.save(source_path)
+    except Exception as e:
+        print("Error occurred:", e)
+
 @app.post("/edit-doc")
 async def edit_doc(request: EditDocRequest):
     print(request)
@@ -92,3 +135,5 @@ async def edit_doc(request: EditDocRequest):
 
 # 启动应用程序
 # uvicorn main:app --port 25457
+
+edit_docx_file("C:\\Users\\29115\\Downloads\\SEKGZ202410296743.docx")
