@@ -17,6 +17,12 @@ class EditDocRequest(BaseModel):
     is_power_bank: bool
     en_name: str = ''
 
+class EditDocxRequest(BaseModel):
+    source_path: str
+    project_no: str
+    date: str
+    signature_img_path: str
+
 def edit_doc_file(source_path, save_dir, project_no, project_name, is_965, is_power_bank, en_name=''):
     try:
         # 创建 Word 应用程序对象
@@ -75,7 +81,7 @@ def edit_doc_file(source_path, save_dir, project_no, project_name, is_965, is_po
             word = None
 
 
-def edit_docx_file(source_path):
+def edit_docx_file(source_path, signature):
     try:
         # 打开文档
         doc = Document(source_path)
@@ -87,18 +93,16 @@ def edit_docx_file(source_path):
                 for cell in row.cells:
                     # 遍历单元格中的每个段落
                     for paragraph in cell.paragraphs:
-                        # 检查段落中的每个运行
-                        for run in paragraph.runs:
-                            if "UN38.3.3(f)" in paragraph.text:
-                                paragraph.text = paragraph.text.replace(
-                                    "UN38.3.3(f)",
-                                    "UN38.3.3.1(f)或/or\nUN38.3.3.2(d)"
-                                )
-                            if "UN38.3.3(g)" in paragraph.text:
-                                paragraph.text = paragraph.text.replace(
-                                    "UN38.3.3(g)",
-                                    "UN38.3.3.1(f)或/or\nUN38.3.3.2(d)"
-                                )
+                        if "UN38.3.3(f)" in paragraph.text:
+                            paragraph.text = paragraph.text.replace(
+                                "UN38.3.3(f)",
+                                "UN38.3.3.1(f)或/or\nUN38.3.3.2(d)"
+                            )
+                        if "UN38.3.3(g)" in paragraph.text:
+                            paragraph.text = paragraph.text.replace(
+                                "UN38.3.3(g)",
+                                "UN38.3.3.1(f)或/or\nUN38.3.3.2(d)"
+                            )
         # 替换标题
         for paragraph in doc.paragraphs:
             for run in paragraph.runs:
@@ -133,7 +137,15 @@ async def edit_doc(request: EditDocRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/edit-docx")
+async def edit_docx(request: EditDocxRequest):
+    try:
+        edit_docx_file(request.source_path, request.signature_img_path)
+        return {"message": "Document edited successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
 # 启动应用程序
 # uvicorn main:app --port 25457
 
-edit_docx_file("C:\\Users\\29115\\Downloads\\SEKGZ202410296743.docx")

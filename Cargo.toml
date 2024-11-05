@@ -23,6 +23,7 @@ client = []
 server = []
 cfth = []
 doc = []
+docx = []
 
 [[bin]]
 name = "client"
@@ -43,6 +44,11 @@ required-features = ["cfth"]
 name = "doc"
 path = "src/bin/doc.rs"
 required-features = ["doc"]
+
+[[bin]]
+name = "docx"
+path = "src/bin/docx.rs"
+required-features = ["docx"]
 
 [dependencies]
 lazy_static = "1.5.0"

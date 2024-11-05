@@ -35,6 +35,7 @@ jobs:
         cargo build --bin server --features server --release
         cargo build --bin cfth --features cfth --release
         cargo build --bin doc --features doc --release
+        cargo build --bin docx --features docx --release
         Get-ChildItem .\target\release\
       shell: pwsh
         
@@ -47,6 +48,7 @@ jobs:
         Copy-Item .\target\release\client.exe Release\client.exe
         Copy-Item .\target\release\cfth.exe Release\cfth.exe
         Copy-Item .\target\release\doc.exe Release\doc.exe
+        Copy-Item .\target\release\docx.exe Release\docx.exe
       shell: pwsh
     
     - name: Release
@@ -58,4 +60,5 @@ jobs:
           Release/client.exe
           Release/cfth.exe
           Release/doc.exe
+          Release/docx.exe
         name: 'Ziafp ${{ steps.get_version.outputs.VERSION }}'

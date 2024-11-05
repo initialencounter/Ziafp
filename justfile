@@ -12,6 +12,9 @@ build-cf:
 build-d:
     cargo build --bin doc --features doc
 
+build-dx:
+    cargo build --bin docx --features docx
+
 dev-c:
     cargo run --features client --bin client
 
@@ -23,6 +26,9 @@ dev-cf:
 
 dev-d:
     cargo run --features doc --bin doc
+
+dev-dx:
+    cargo run --features docx --bin docx
 
 lint-c:
     cargo clippy -- -D warnings --bin client --features client
@@ -36,8 +42,12 @@ lint-cf:
 lint-d:
     cargo clippy -- -D warnings --bin doc --features doc
 
+lint-dx:
+    cargo clippy -- -D warnings --bin docx --features docx
+
 build-r:
     cargo build --bin client --features client --release
     cargo build --bin server --features server --release
     cargo build --bin cfth --features cfth --release
     cargo build --bin doc --features doc --release
+    cargo build --bin docx --features docx --release
