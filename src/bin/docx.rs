@@ -48,11 +48,11 @@ fn check_project_no(project_no: &str) -> bool {
     return PROJECT_NO_REGEX.is_match(project_no);
 }
 
-async fn send_task(path: PathBuf, project_no: &str) -> Result<()> {
+async fn send_task(path: String, project_no: &str) -> Result<()> {
     let client = Client::new();
     let today_date = get_today_date();
     let request_body = json!({
-        "source_path": path.to_str().unwrap(),
+        "source_path": &path,
         "project_no": project_no,
         "date": today_date,
         "signature_img_path": env::current_exe().unwrap().parent().unwrap().join("signature.png").to_str().unwrap()
@@ -69,7 +69,7 @@ async fn send_task(path: PathBuf, project_no: &str) -> Result<()> {
     // 检查响应状态
     if response.status().is_success() {
         let _res: EditDocResponse = response.json().await?;
-        open_file_with_default_program(path.to_str().unwrap());
+        open_file_with_default_program(&path);
     } else {
         popup_message("替换文件失败", "替换文件失败");
     }
@@ -115,6 +115,8 @@ fn open_file_with_default_program(path: &str) {
 }
 
 async fn match_file(dir: &PathBuf, project_no: &str) {
+    let mut file_path_list = vec![];
+    let mut file_name_list = vec![];
     for entry in fs::read_dir(dir).unwrap() {
         let path = entry.unwrap().path();
         if path.is_dir() {
@@ -131,10 +133,14 @@ async fn match_file(dir: &PathBuf, project_no: &str) {
         if !file_name.starts_with("PEK") && !file_name.starts_with("SEK") {
             continue;
         }
-        // println!("{}", file_name);
-        popup_message("name", &file_name);
-        let _ = send_task(path, project_no).await;
+        file_path_list.push(path.to_str().unwrap().to_string());
+        file_name_list.push(file_name.to_string());
+    }
+    if !popup_message("是否要修改这些概要？", &file_name_list.join("\n")) {
         return;
+    }
+    for path in file_path_list {
+        let _ = send_task(path, project_no).await;
     }
 }
 
@@ -181,13 +187,13 @@ async fn main() {
 
     let target_dir = args[1].to_string();
     let clip_text = get_clip_text();
-    if !check_project_no(&clip_text) {
-        popup_message(
-            "项目编号不合法",
-            &format!("请检查项目编号是否正确: {}", clip_text),
-        );
-        return;
-    }
+    // if !check_project_no(&clip_text) {
+    //     popup_message(
+    //         "项目编号不合法",
+    //         &format!("请检查项目编号是否正确: {}", clip_text),
+    //     );
+    //     return;
+    // }
     match_file(&PathBuf::from(&target_dir), &clip_text).await;
     
 }
