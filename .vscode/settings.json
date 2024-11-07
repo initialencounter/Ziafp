@@ -1,9 +1,12 @@
 {
   "cSpell.words": [
+    "APARTMENTTHREADED",
     "batteryfile",
     "cfth",
     "checkpdf",
     "chrono",
+    "COINIT",
+    "combaseapi",
     "copypasta",
     "Datsha",
     "dotenv",
@@ -16,14 +19,19 @@
     "hkcu",
     "hklm",
     "lims",
+    "minwindef",
     "msvc",
     "namedpipeapi",
+    "objbase",
     "pixiv",
+    "processthreadsapi",
     "pwsh",
+    "pythoncom",
     "READMODE",
     "Referer",
     "refesh",
     "Regedit",
+    "rels",
     "RUSTFLAGS",
     "rustup",
     "serde",
@@ -33,6 +41,7 @@
     "winbase",
     "winreg",
     "winres",
+    "winuser",
     "Ziafp"
   ]
 }
