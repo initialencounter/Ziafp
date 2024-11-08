@@ -2,10 +2,10 @@ import os
 import keyboard
 from utils.doc import prepare_doc_file
 from utils.docx import prepare_docx_file
-from utils.utils import popup_message
+from utils.utils import popup_message, get_executable_dir
 
-signature_img_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "signature.png")
-source_image_doc_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "image.doc")
+signature_img_path = os.path.join(get_executable_dir(), "signature.png")
+source_image_doc_path = os.path.join(get_executable_dir(), "image.doc")
 
 
 def on_edit_doc():
@@ -28,3 +28,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# pyinstaller --noconfirm --onefile --add-data "image.doc;." main.py

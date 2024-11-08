@@ -3,6 +3,7 @@ import re
 import datetime
 import ctypes
 import subprocess
+import sys
 import pyperclip
 
 PROJECT_NO_REGEX = re.compile(r"[P|S]EK.{2}\d{12}")
@@ -44,3 +45,11 @@ def get_today_date():
     # 格式化为 YYYY-MM-DD
     formatted_date = today.strftime("%Y-%m-%d")
     return formatted_date
+
+def get_executable_dir():
+    if getattr(sys, 'frozen', False):
+        # 如果是打包后的可执行文件
+        return os.path.dirname(sys.executable)
+    else:
+        # 如果是开发环境
+        return os.path.dirname(os.path.abspath(__file__))

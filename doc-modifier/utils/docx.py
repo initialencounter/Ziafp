@@ -4,6 +4,7 @@ from utils.explorer import get_explorer_path
 from utils.utils import match_docx_files, open_file_with_default_program, popup_message
 
 def edit_docx_file(source_path):
+    print(source_path)
     try:
         # 打开文档
         doc = Document(source_path)
@@ -82,4 +83,5 @@ def prepare_docx_file(signature_img_path):
     for file_path in file_path_list:
         edit_docx_file(file_path)
         open_file_with_default_program(file_path)
+        print(signature_img_path)
         replace_last_image_in_docx(file_path, signature_img_path)
