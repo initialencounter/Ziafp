@@ -8,9 +8,11 @@ use reqwest::{multipart, Client};
 use warp::Filter;
 
 use ziafp::logger::Logger;
-use ziafp::utils::launch::{is_launched_from_registry, request_admin_and_restart};
 use ziafp::utils::regedit::create_auto_run_reg;
-use ziafp::utils::{get_today_date, match_file, popup_message, prepare_file_info, RawFileInfo};
+use ziafp::utils::{
+    build_confirmation_message, get_today_date, match_file, parse_date, popup_message,
+    prepare_file_info, RawFileInfo,
+};
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -19,8 +21,8 @@ use ziafp::tray::TrayHandler;
 
 use ziafp::window::hide_console_window;
 
+use is_elevated::is_elevated;
 use serde::{Deserialize, Serialize};
-
 use std::fmt;
 use warp::reject::Reject;
 
@@ -39,101 +41,6 @@ impl fmt::Display for CustomError {
 impl Reject for CustomError {}
 
 static LOGIN_STATUS: AtomicBool = AtomicBool::new(false);
-
-async fn post_file_from_directory(path: PathBuf, client: &HttpClient) -> Vec<String> {
-    client
-        .log(
-            "INFO",
-            &format!("开始从 {} 上传文件", path.to_str().unwrap()),
-        )
-        .await;
-    let current_exe = env::current_exe().expect("无法获取当前执行文件路径");
-    if !LOGIN_STATUS.load(Ordering::Relaxed) {
-        popup_message(
-            "登录失败",
-            &format!(
-                "请先检查密码是否正确，日志中可能会有更多信息: 日志文件路径{:?}",
-                current_exe.parent().unwrap().join("logs")
-            ),
-        );
-        return Vec::new();
-    }
-    let raw_file_info = match_file(&path);
-    let message = build_confirmation_message(&raw_file_info);
-
-    if !popup_message("警告", &message) {
-        return Vec::new();
-    }
-
-    let mut uploaded_files = Vec::new();
-    for file_info in raw_file_info {
-        let result = process_single_file(file_info, client).await;
-        if let Ok(file_name) = result {
-            uploaded_files.push(file_name);
-        }
-    }
-    client
-        .log("INFO", &format!("上传的文件: {:?}", uploaded_files))
-        .await;
-    uploaded_files
-}
-
-fn build_confirmation_message(raw_file_info: &[RawFileInfo]) -> String {
-    let mut message = String::from("是否要上传这些文件?：\n");
-    for (index, file) in raw_file_info.iter().enumerate() {
-        message.push_str(&format!("{}. {}\n", index + 1, file.file_name));
-    }
-    message
-}
-
-async fn process_single_file(file_info: RawFileInfo, client: &HttpClient) -> Result<String> {
-    let Some(file_info) = prepare_file_info(file_info) else {
-        return Err("准备文件信息失败".into());
-    };
-
-    let project_id: String;
-    if client.debug {
-        project_id = "123456AAAAAAAAAAAAAAAA".to_string();
-    } else {
-        project_id = client.get_project_id(&file_info.project_no).await?;
-    }
-
-    client
-        .post_file(
-            &project_id,
-            &file_info.file_id,
-            file_info.file_buffer,
-            &file_info.file_name,
-            &file_info.file_type,
-        )
-        .await
-}
-
-fn parse_date(date_text: &str) -> Result<(String, String)> {
-    let numbers: String = date_text.chars().filter(|c| c.is_digit(10)).collect();
-
-    if numbers.len() < 8 {
-        return Err("文件名称错误".into());
-    }
-
-    let year = &numbers[0..4];
-    let month = &numbers[4..6];
-    let day = &numbers[6..8];
-
-    if month == "00" {
-        Ok((format!("{}-01-01", year), format!("{}-12-31", year)))
-    } else if day == "00" {
-        Ok((
-            format!("{}-{}-01", year, month),
-            format!("{}-{}-31", year, month),
-        ))
-    } else {
-        Ok((
-            format!("{}-{}-{}", year, month, day),
-            format!("{}-{}-{}", year, month, day),
-        ))
-    }
-}
 
 #[derive(Deserialize, Serialize)]
 struct QueryResult {
@@ -213,6 +120,10 @@ impl HttpClient {
         }
     }
     async fn login(&self) -> Result<()> {
+        if self.debug {
+            self.log("INFO", "调试模式，跳过登录").await;
+            return Ok(());
+        }
         let response = self
             .client
             .post(format!("{}/login", self.base_url))
@@ -245,7 +156,6 @@ impl HttpClient {
             Err("登录失败".into())
         }
     }
-
     async fn query_project(&self, query_string: &str) -> Result<QueryResult> {
         let url = format!("{}/rest/inspect/query?{}", self.base_url, query_string);
         let response = self
@@ -262,29 +172,6 @@ impl HttpClient {
             .header(header::ACCEPT, "application/json")
             .send()
             .await?;
-
-        // 检查是否是401错误
-        if response.status() == reqwest::StatusCode::UNAUTHORIZED {
-            // 重新登录
-            self.login().await.unwrap();
-            // 重试请求
-            let response = self
-                .client
-                .get(&url)
-                .header(
-                    "Host",
-                    self.base_url
-                        .to_string()
-                        .replace("http://", "")
-                        .replace("https://", ""),
-                )
-                .header("Referer", self.base_url.to_string())
-                .header(header::ACCEPT, "application/json")
-                .send()
-                .await?;
-            let result: QueryResult = response.json().await?;
-            return Ok(result);
-        }
 
         let result: QueryResult = response.json().await?;
         Ok(result)
@@ -377,16 +264,88 @@ impl HttpClient {
     async fn log(&self, level: &str, message: &str) {
         self.logger.lock().await.log(level, message);
     }
+    async fn post_file_from_directory(&self, path: PathBuf) -> Vec<String> {
+        self.log(
+            "INFO",
+            &format!("开始从 {} 上传文件", path.to_str().unwrap()),
+        )
+        .await;
+        let current_exe = env::current_exe().expect("无法获取当前执行文件路径");
+        if !LOGIN_STATUS.load(Ordering::Relaxed) {
+            popup_message(
+                "登录失败",
+                &format!(
+                    "请先检查密码是否正确，日志中可能会有更多信息: 日志文件路径{:?}",
+                    current_exe.parent().unwrap().join("logs")
+                ),
+            );
+            return Vec::new();
+        }
+        let raw_file_info = match_file(&path);
+        let message = build_confirmation_message(&raw_file_info);
+
+        if !popup_message("警告", &message) {
+            return Vec::new();
+        }
+
+        let mut uploaded_files = Vec::new();
+        for file_info in raw_file_info {
+            let result = self.process_single_file(file_info).await;
+            if let Ok(file_name) = result {
+                uploaded_files.push(file_name);
+            }
+        }
+        self.log("INFO", &format!("上传的文件: {:?}", uploaded_files))
+            .await;
+        uploaded_files
+    }
+
+    async fn process_single_file(&self, file_info: RawFileInfo) -> Result<String> {
+        let Some(file_info) = prepare_file_info(file_info) else {
+            return Err("准备文件信息失败".into());
+        };
+
+        let project_id: String;
+        if self.debug {
+            project_id = "123456AAAAAAAAAAAAAAAA".to_string();
+        } else {
+            project_id = self.get_project_id(&file_info.project_no).await?;
+        }
+
+        self.post_file(
+            &project_id,
+            &file_info.file_id,
+            file_info.file_buffer,
+            &file_info.file_name,
+            &file_info.file_type,
+        )
+        .await
+    }
+
+    async fn get_project_info(&self, project_no: &str) -> Result<QueryResult> {
+        self.log("INFO", &format!("GET /get-project-info: {:?}", project_no))
+            .await;
+        let (start_date, end_date) = parse_date(&project_no).unwrap();
+        let system_id = if project_no.starts_with("PEK") {
+            "pek"
+        } else {
+            "sek"
+        };
+
+        let query_string = format!(
+            "systemId={}&category=battery&projectNo={}&startDate={}&endDate={}&page=1&rows=10",
+            system_id, project_no, start_date, end_date
+        );
+        let result = self.query_project(&query_string).await.unwrap();
+        Ok(result)
+    }
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let current_exe = env::current_exe().expect("无法获取当前执行文件路径");
-    if request_admin_and_restart() {
-        return Ok(());
-    }
-    // 如果程序不是从注册表启动，则创建注册表自启动
-    if !is_launched_from_registry() {
+    // 如果程序有管理员权限，则创建注册表自启动
+    if is_elevated() {
         let _ = create_auto_run_reg("ZiafpServer", &current_exe.to_str().unwrap());
     }
 
@@ -403,22 +362,44 @@ async fn main() -> Result<()> {
     let log_enabled = env::var("LOG_ENABLED").unwrap_or_else(|_| "false".to_string());
 
     let client = Arc::new(Mutex::new(HttpClient::new(
-        base_url,
-        username,
-        password,
+        base_url.clone(),
+        username.clone(),
+        password.clone(),
         debug == "true",
         log_enabled == "true",
     )));
-
     client.lock().await.log("INFO", "开始运行").await;
-    if debug == "false" {
-        if let Err(_e) = client.lock().await.login().await {
-            return Ok(());
-        }
-    } else {
-        client.lock().await.log("INFO", "调试模，跳过登录").await;
-    }
-
+    client
+        .lock()
+        .await
+        .log("INFO", &format!("base_url: {}", base_url))
+        .await;
+    client
+        .lock()
+        .await
+        .log("INFO", &format!("username: {}", username))
+        .await;
+    client
+        .lock()
+        .await
+        .log("INFO", &format!("password: {}", password))
+        .await;
+    client
+        .lock()
+        .await
+        .log("INFO", &format!("port: {}", port))
+        .await;
+    client
+        .lock()
+        .await
+        .log("INFO", &format!("debug: {}", debug))
+        .await;
+    client
+        .lock()
+        .await
+        .log("INFO", &format!("log_enabled: {}", log_enabled))
+        .await;
+    let _ = client.lock().await.login().await;
     let client_clone = client.clone();
     let heartbeat = tokio::spawn(async move {
         loop {
@@ -447,11 +428,12 @@ async fn main() -> Result<()> {
         }))
         .then(
             move |dir: DirectoryInfo, client: Arc<Mutex<HttpClient>>| async move {
-                tokio::spawn(async move {
-                    let client_guard = client.lock().await;
-                    post_file_from_directory(PathBuf::from(&dir.dir), &client_guard).await;
-                });
-                warp::reply::json(&"已接收上传请求")
+                let files = client
+                    .lock()
+                    .await
+                    .post_file_from_directory(PathBuf::from(&dir.dir))
+                    .await;
+                warp::reply::json(&files)
             },
         );
 
@@ -464,32 +446,20 @@ async fn main() -> Result<()> {
         }))
         .then(
             move |project_no: String, client: Arc<Mutex<HttpClient>>| async move {
-                client.lock().await.log("INFO", &format!("GET /get-project-info: {:?}", project_no)).await;
-                let result: std::result::Result<_, warp::Rejection> = async {
-                    let (start_date, end_date) = parse_date(&project_no)
-                        .map_err(|e| warp::reject::custom(CustomError { message: e.to_string() }))?;
-                    let system_id = if project_no.starts_with("PEK") {
-                        "pek"
+                client
+                    .lock()
+                    .await
+                    .log("INFO", &format!("GET /get-project-info: {:?}", project_no))
+                    .await;
+                let response =
+                    if let Ok(result) = client.lock().await.get_project_info(&project_no).await {
+                        warp::reply::json(&result)
                     } else {
-                        "sek"
+                        warp::reply::json(&CustomError {
+                            message: "未找到项目ID".to_string(),
+                        })
                     };
-
-                    let query_string = format!(
-                        "systemId={}&category=battery&projectNo={}&startDate={}&endDate={}&page=1&rows=10",
-                        system_id, project_no, start_date, end_date
-                    );
-                    let res = client.lock().await.query_project(&query_string)
-                        .await
-                        .map_err(|e| warp::reject::custom(CustomError { message: e.to_string() }))?;
-                    Ok(warp::reply::json(&res))
-                }
-                .await;
-
-                if let Ok(result) = result {
-                    result
-                } else {
-                    warp::reply::json(&CustomError { message: "未找到项目ID".to_string() })
-                }
+                response
             },
         );
     // 创建事件循环
