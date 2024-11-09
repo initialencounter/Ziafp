@@ -178,7 +178,7 @@ async fn main() {
         let current_exe = env::current_exe().expect("无法获取当前执行文件路径");
         let current_exe_abs_path = current_exe.to_str().expect("无法获取当前执行文件路径");
         let key_name = "docx";
-        let menu_name = "Replace docx";
+        let menu_name = "Replace ALL docx";
         let command = format!(r#""{}" "%V""#, current_exe_abs_path);
         let icon = format!(r#"{}"#, current_exe_abs_path);
         create_reg(key_name, menu_name, &command, &icon).unwrap();
@@ -187,13 +187,6 @@ async fn main() {
 
     let target_dir = args[1].to_string();
     let clip_text = get_clip_text();
-    // if !check_project_no(&clip_text) {
-    //     popup_message(
-    //         "项目编号不合法",
-    //         &format!("请检查项目编号是否正确: {}", clip_text),
-    //     );
-    //     return;
-    // }
     match_file(&PathBuf::from(&target_dir), &clip_text).await;
     
 }
