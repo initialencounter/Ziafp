@@ -7,6 +7,7 @@ use reqwest::header;
 use reqwest::{multipart, Client};
 use warp::Filter;
 
+use ziafp::utils::launch::{is_launched_from_registry, request_admin_and_restart};
 use ziafp::logger::Logger;
 use ziafp::utils::regedit::create_auto_run_reg;
 use ziafp::utils::{
@@ -21,7 +22,6 @@ use ziafp::tray::TrayHandler;
 
 use ziafp::window::hide_console_window;
 
-use is_elevated::is_elevated;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use warp::reject::Reject;
@@ -344,8 +344,11 @@ impl HttpClient {
 #[tokio::main]
 async fn main() -> Result<()> {
     let current_exe = env::current_exe().expect("无法获取当前执行文件路径");
-    // 如果程序有管理员权限，则创建注册表自启动
-    if is_elevated() {
+    if request_admin_and_restart() {
+        return Ok(());
+    }
+    // 如果程序不是从注册表启动，则创建注册表自启动
+    if !is_launched_from_registry() {
         let _ = create_auto_run_reg("ZiafpServer", &current_exe.to_str().unwrap());
     }
 
