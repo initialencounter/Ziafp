@@ -1,6 +1,7 @@
 import win32com.client
 import pythoncom
 import win32gui
+import urllib.parse
 
 def get_explorer_path():
     # 初始化COM库
@@ -17,7 +18,8 @@ def get_explorer_path():
         # 检查窗口是否是资源管理器窗口并且是当前聚焦的窗口
         if (window.Name == "文件资源管理器" or window.Name == "Windows 资源管理器") and window.HWND == foreground_hwnd:
             # 返回当前路径
-            return window.LocationURL.replace('file:///', '')
+            url = window.LocationURL.replace('file:///', '')
+            return urllib.parse.unquote(url)
     
     return None
 

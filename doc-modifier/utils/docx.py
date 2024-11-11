@@ -3,7 +3,7 @@ from docx import Document
 from utils.explorer import get_explorer_path
 from utils.utils import match_docx_files, open_file_with_default_program, popup_message
 
-def edit_docx_file(source_path):
+def edit_docx_file(source_path, signature_img_path):
     try:
         # 打开文档
         doc = Document(source_path)
@@ -38,15 +38,14 @@ def edit_docx_file(source_path):
                         "Lithium Battery Test Summary",
                         "Test Summary"
                     )
+        doc = replace_last_image_in_docx(doc, signature_img_path)
         doc.save(source_path)
     except Exception as e:
         print("Error occurred:", e)
 
 
-def replace_last_image_in_docx(docx_path, new_image_path):
-    # 打开文档
-    doc = Document(docx_path)
-    
+
+def replace_last_image_in_docx(doc, new_image_path):
     # 获取所有图片的关系
     rels = doc.part.rels
     
@@ -62,10 +61,8 @@ def replace_last_image_in_docx(docx_path, new_image_path):
         with open(new_image_path, 'rb') as new_image_file:
             last_image_rel.target_part._blob = new_image_file.read()
     
-    # 保存文档
-    new_docx_path = os.path.splitext(docx_path)[0] + '_updated.docx'
-    doc.save(new_docx_path)
-    return new_docx_path
+ 
+    return doc
 
 def prepare_docx_file(signature_img_path):
     path = get_explorer_path()
@@ -80,6 +77,5 @@ def prepare_docx_file(signature_img_path):
         print("用户取消")
         return
     for file_path in file_path_list:
-        edit_docx_file(file_path)
+        edit_docx_file(file_path, signature_img_path)
         open_file_with_default_program(file_path)
-        replace_last_image_in_docx(file_path, signature_img_path)
