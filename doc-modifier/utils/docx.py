@@ -79,3 +79,4 @@ def prepare_docx_file(signature_img_path):
     for file_path in file_path_list:
         edit_docx_file(file_path, signature_img_path)
         open_file_with_default_program(file_path)
+        replace_last_image_in_docx(file_path, signature_img_path)
