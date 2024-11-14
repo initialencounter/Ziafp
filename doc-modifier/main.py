@@ -1,7 +1,6 @@
 import os
 import keyboard
-from utils.doc import prepare_doc_file
-from utils.docx import prepare_docx_file
+from utils.popup import prepare_doc_file, prepare_docx_file
 from utils.utils import popup_message
 from utils.utils import get_executable_dir
 

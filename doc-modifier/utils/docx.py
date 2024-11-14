@@ -1,9 +1,6 @@
-import os
 from docx import Document
-from utils.explorer import get_explorer_path
-from utils.utils import match_docx_files, open_file_with_default_program, popup_message
 
-def edit_docx_file(source_path, signature_img_path):
+def edit_docx_file(source_path, signature_img_path=None):
     try:
         # 打开文档
         doc = Document(source_path)
@@ -38,7 +35,8 @@ def edit_docx_file(source_path, signature_img_path):
                         "Lithium Battery Test Summary",
                         "Test Summary"
                     )
-        doc = replace_last_image_in_docx(doc, signature_img_path)
+        if signature_img_path:
+            doc = replace_last_image_in_docx(doc, signature_img_path)
         doc.save(source_path)
     except Exception as e:
         print("Error occurred:", e)
@@ -64,19 +62,3 @@ def replace_last_image_in_docx(doc, new_image_path):
  
     return doc
 
-def prepare_docx_file(signature_img_path):
-    path = get_explorer_path()
-    if not path:
-        return
-    file_path_list, file_name_list = match_docx_files(path)
-    if not file_path_list:
-        popup_message("未找到概要文件", "未找到概要文件")
-        return
-    confirm = popup_message("确认", "是否要修改这些概要？\n" + "\n".join(file_name_list))
-    if not confirm:
-        print("用户取消")
-        return
-    for file_path in file_path_list:
-        edit_docx_file(file_path, signature_img_path)
-        open_file_with_default_program(file_path)
-        replace_last_image_in_docx(file_path, signature_img_path)
