@@ -42,7 +42,7 @@ jobs:
     - name: Get latest tag
       id: get_latest_tag
       run: |
-        $tag = git describe --tags --abbrev=0
+        $tag = (Invoke-WebRequest -Uri "https://api.github.com/repos/${{ github.repository }}/releases/latest" | ConvertFrom-Json).tag_name
         echo "LATEST_TAG=$tag" >> $env:GITHUB_ENV
         echo "$tag"
       shell: pwsh
