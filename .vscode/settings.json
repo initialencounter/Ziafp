@@ -18,6 +18,7 @@
     "handleapi",
     "hkcu",
     "hklm",
+    "jsonify",
     "lims",
     "minwindef",
     "msvc",

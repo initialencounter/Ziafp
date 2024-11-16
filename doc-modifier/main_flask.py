@@ -8,6 +8,8 @@ app = Flask(__name__)
 def edit_doc():
     try:
         data = request.get_json()
+        import pythoncom
+        pythoncom.CoInitialize()
         save_path = edit_doc_file(
             source_path=data['source_path'],
             save_dir=data['save_dir'],
@@ -17,6 +19,7 @@ def edit_doc():
             is_power_bank=data['is_power_bank'],
             en_name=data['en_name']
         )
+        pythoncom.CoUninitialize()
         return jsonify({"message": "Document edited successfully", "save_path": save_path})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
