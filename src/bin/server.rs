@@ -98,7 +98,7 @@ impl HttpClient {
             logger,
         }
     }
-    async fn heartbeat(&self) -> Result<()> {
+    pub async fn heartbeat(&self) -> Result<()> {
         let today_date = get_today_date();
         if let Ok(result) = self
             .query_project(&format!(
@@ -108,18 +108,16 @@ impl HttpClient {
             .await
         {
             LOGIN_STATUS.store(true, Ordering::Relaxed);
-            self.logger
-                .lock()
-                .await
-                .log("INFO", &format!("心跳成功: {:?}", result.rows.len()));
+            self.log("INFO", &format!("心跳成功: {:?}", result.rows.len()))
+                .await;
             Ok(())
         } else {
             LOGIN_STATUS.store(false, Ordering::Relaxed);
-            self.logger.lock().await.log("ERROR", "心跳失败");
+            self.log("ERROR", "心跳失败").await;
             Err("心跳失败".into())
         }
     }
-    async fn login(&self) -> Result<()> {
+    pub async fn login(&self) -> Result<()> {
         if self.debug {
             self.log("INFO", "调试模式，跳过登录").await;
             return Ok(());
@@ -145,20 +143,19 @@ impl HttpClient {
 
         if response.status().is_success() {
             LOGIN_STATUS.store(true, Ordering::Relaxed);
-            self.logger.lock().await.log("INFO", "登录成功");
+            self.log("INFO", "登录成功").await;
             Ok(())
         } else {
             LOGIN_STATUS.store(false, Ordering::Relaxed);
-            self.logger
-                .lock()
-                .await
-                .log("ERROR", &format!("登录失败: {:?}", response.text().await?));
+            self.log("ERROR", &format!("登录失败: {:?}", response.text().await?))
+                .await;
             Err("登录失败".into())
         }
     }
-    async fn query_project(&self, query_string: &str) -> Result<QueryResult> {
+    pub async fn query_project(&self, query_string: &str) -> Result<QueryResult> {
         let url = format!("{}/rest/inspect/query?{}", self.base_url, query_string);
-        let response = self
+
+        let response = match self
             .client
             .get(&url)
             .header(
@@ -171,36 +168,50 @@ impl HttpClient {
             .header("Referer", self.base_url.to_string())
             .header(header::ACCEPT, "application/json")
             .send()
-            .await?;
-
-        let result: QueryResult = response.json().await?;
-        Ok(result)
-    }
-    async fn get_project_id(&self, project_no: &str) -> Result<String> {
-        let (start_date, end_date) = parse_date(project_no)?;
-        let system_id = if project_no.starts_with("PEK") {
-            "pek"
-        } else {
-            "sek"
+            .await
+        {
+            Ok(resp) => resp,
+            Err(e) => {
+                self.log("ERROR", &format!("请求失败: {}", e)).await;
+                return Err(Box::new(e));
+            }
         };
 
+        if !response.status().is_success() {
+            let error_msg = format!("服务器返回错误状态码: {}", response.status());
+            self.log("ERROR", &error_msg).await;
+            return Err(error_msg.into());
+        }
+
+        match response.json().await {
+            Ok(result) => Ok(result),
+            Err(e) => {
+                self.log("ERROR", &format!("解析JSON失败: {}", e)).await;
+                Err(Box::new(e))
+            }
+        }
+    }
+    pub async fn get_project_id(&self, project_no: &str) -> Result<String> {
+        let (start_date, end_date) = parse_date(project_no)?;
+        let system_id = project_no[0..3].to_lowercase();
         let query_string = format!(
             "systemId={}&category=battery&projectNo={}&startDate={}&endDate={}&page=1&rows=10",
             system_id, project_no, start_date, end_date
         );
-        let result: QueryResult = self.query_project(&query_string).await.unwrap();
+
+        let result = self.query_project(&query_string).await?;
+
         if result.rows.is_empty() {
-            self.logger
-                .lock()
-                .await
-                .log("ERROR", &format!("未找到项目ID: {:?}", query_string));
+            self.log("ERROR", &format!("未找到项目ID: {:?}", query_string))
+                .await;
             return Err("未找到项目ID".into());
         }
         if result.rows[0].edit_status > 2 {
-            self.logger.lock().await.log(
+            self.log(
                 "ERROR",
                 &format!("没有权限修改: {:?}", result.rows[0].project_id),
-            );
+            )
+            .await;
             return Err("没有权限修改".into());
         }
         Ok(result.rows[0].project_id.clone())
@@ -299,7 +310,7 @@ impl HttpClient {
             .await;
         uploaded_files
     }
-
+    
     async fn process_single_file(&self, file_info: RawFileInfo) -> Result<String> {
         let Some(file_info) = prepare_file_info(file_info) else {
             return Err("准备文件信息失败".into());
@@ -325,19 +336,25 @@ impl HttpClient {
     async fn get_project_info(&self, project_no: &str) -> Result<QueryResult> {
         self.log("INFO", &format!("GET /get-project-info: {:?}", project_no))
             .await;
-        let (start_date, end_date) = parse_date(&project_no).unwrap();
-        let system_id = if project_no.starts_with("PEK") {
-            "pek"
-        } else {
-            "sek"
-        };
+
+        // 处理日期解析错误
+        let (start_date, end_date) =
+            parse_date(&project_no).map_err(|e| format!("解析日期失败: {}", e))?;
+
+        let system_id = project_no[0..3].to_lowercase();
 
         let query_string = format!(
             "systemId={}&category=battery&projectNo={}&startDate={}&endDate={}&page=1&rows=10",
             system_id, project_no, start_date, end_date
         );
-        let result = self.query_project(&query_string).await.unwrap();
-        Ok(result)
+
+        match self.query_project(&query_string).await {
+            Ok(result) => Ok(result),
+            Err(e) => {
+                self.log("ERROR", &format!("查询项目失败: {}", e)).await;
+                Err(format!("查询项目失败: {}", e).into())
+            }
+        }
     }
 }
 
