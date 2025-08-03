@@ -36,6 +36,7 @@ jobs:
         cargo build --bin cfth --features cfth --release
         cargo build --bin doc --features doc --release
         cargo build --bin docx --features docx --release
+        cargo build --bin ocr --features ocr --release
         Get-ChildItem .\target\release\
       shell: pwsh
         
@@ -49,6 +50,7 @@ jobs:
         Copy-Item .\target\release\cfth.exe Release\cfth.exe
         Copy-Item .\target\release\doc.exe Release\doc.exe
         Copy-Item .\target\release\docx.exe Release\docx.exe
+        Copy-Item .\target\release\ocr.exe Release\ocr.exe
       shell: pwsh
     
     - name: Release
@@ -61,4 +63,5 @@ jobs:
           Release/cfth.exe
           Release/doc.exe
           Release/docx.exe
+          Release/ocr.exe
         name: 'Ziafp ${{ steps.get_version.outputs.VERSION }}'
