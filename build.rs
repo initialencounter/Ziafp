@@ -51,4 +51,12 @@ fn main() {
         println!("cargo:warning=正在构建docx编辑工具");
         embed_resource::compile("resources/icon-docx.rc", embed_resource::NONE);
     }
+    #[cfg(feature = "ocr")]
+    {
+        let mut res = winres::WindowsResource::new();
+        res.set_icon("./resources/ocr.ico");
+        res.compile().unwrap();
+        println!("cargo:warning=正在构建ocr编辑工具");
+        embed_resource::compile("resources/icon-ocr.rc", embed_resource::NONE);
+    }
 }

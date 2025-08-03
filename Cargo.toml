@@ -24,6 +24,7 @@ server = []
 cfth = []
 doc = []
 docx = []
+ocr = []
 
 [[bin]]
 name = "client"
@@ -49,6 +50,11 @@ required-features = ["doc"]
 name = "docx"
 path = "src/bin/docx.rs"
 required-features = ["docx"]
+
+[[bin]]
+name = "ocr"
+path = "src/bin/ocr.rs"
+required-features = ["ocr"]
 
 [dependencies]
 lazy_static = "1.5.0"
